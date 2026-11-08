@@ -6,6 +6,7 @@
   <a href="https://docs.claude.com/en/docs/claude-code/plugin-marketplaces"><img alt="Claude Code plugin marketplace" src="https://img.shields.io/badge/Claude_Code-plugin_marketplace-D97757?style=for-the-badge&logo=anthropic&logoColor=white"></a>
   <img alt="plugins" src="https://img.shields.io/badge/plugins-2-38BDF8?style=for-the-badge">
   <img alt="skills" src="https://img.shields.io/badge/skills-4-A78BFA?style=for-the-badge">
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-22C55E?style=for-the-badge"></a>
 </p>
 
 <p align="center">
@@ -212,6 +213,10 @@ that the procedure now guards against.
    [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json).
 3. Bump the plugin `version` in both files when a skill changes.
 4. Update the skill table and the plugin/skill counts in this README.
+
+## 📄 License
+
+[MIT](LICENSE) © Precedent Labs
 
 ---
 

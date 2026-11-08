@@ -5,6 +5,7 @@
   "author": {
     "name": "Precedent Labs"
   },
+  "license": "MIT",
   "keywords": [
     "code-review",
     "subagents",
