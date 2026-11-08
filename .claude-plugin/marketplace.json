@@ -1,0 +1,15 @@
+{
+  "name": "precedentlabs-skills",
+  "owner": { "name": "Precedent Labs" },
+  "metadata": {
+    "description": "Agent skills from Precedent Labs: reusable workflows distilled from real sessions."
+  },
+  "plugins": [
+    {
+      "name": "review-fanout",
+      "source": "./plugins/review-fanout",
+      "description": "Parallel code review of uncommitted changes, then triage and a model-tiered fix fanout with a single verification gate.",
+      "version": "0.1.0"
+    }
+  ]
+}
