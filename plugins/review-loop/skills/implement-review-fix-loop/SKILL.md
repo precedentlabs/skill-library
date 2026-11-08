@@ -86,6 +86,10 @@ is wrong, and must not reopen a fix an earlier round accepted.
    re-read the whole current diff for anything the fix introduced.
 8. Repeat 4–7 until the verdict meets the bar.
 
+"Same session" assumes the harness can message a running or idle subagent. If it cannot,
+spawn a new one and hand it the previous report, the findings and the diff command; the
+protocol is unchanged.
+
 **Cosmetic tail.** When the last open item is a comment, a doc line or a format fix,
 the orchestrator fixes it inline and confirms with the gate instead of another review
 round. Record that it was not re-reviewed. Anything touching behaviour gets a review.

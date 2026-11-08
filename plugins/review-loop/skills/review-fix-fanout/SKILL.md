@@ -43,8 +43,9 @@ one, state it in the task, and say so in the final report.
 
 ## 3. Write self-contained tasks
 
-Subagents start blank. Put shared rules in `context` once (repo rules file, "do not run
-the build/gate/formatters", "report what the parent must still do"). Each task needs:
+Subagents start blank and share nothing, so repeat the shared rules at the top of every task
+prompt (repo rules file, "do not run the build/gate/formatters", "report what the parent must
+still do"); keep them in one block you paste, not re-worded per task. Each task needs:
 
 - `# Target`: files, non-goals
 - `# Change`: numbered steps with the exact symbol/line hints from the review, the chosen
@@ -53,12 +54,12 @@ the build/gate/formatters", "report what the parent must still do"). Each task n
 - `# Acceptance`: observable result, tests to add (and that a regression test must fail
   before the fix), wording to report back
 
-Pass the `solutionSpace` honestly: "wording given" for docs, "design open within
-constraints" for refactors.
+State in each prompt how open the design is: "wording given" for docs, "design open within
+constraints" for refactors. Set the model per task with the harness's model option, per §1.
 
 ## 4. Spawn once, batch, then integrate
 
-Spawn all independent tasks in **one** `tasks[]` batch. Do not poll; do productive
+Spawn all independent tasks in a **single message** (one block of parallel task calls). Do not poll; do productive
 work while they run. The one thing the parent should do meanwhile: apply the doc
 wording that agents report, serialized after the docs task finishes (editing a doc
 while its owner is still running causes clobbered lines).
