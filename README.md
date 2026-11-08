@@ -6,7 +6,7 @@ Agent skills from Precedent Labs, packaged as a Claude Code plugin marketplace.
 
 ```
 /plugin marketplace add precedentlabs/skill-library
-/plugin install review-fanout@precedentlabs-skills
+/plugin install review-loop@precedentlabs-skills
 ```
 
 Local checkout works too: `/plugin marketplace add ./skill-library`.
@@ -23,8 +23,8 @@ plugins/<plugin>/skills/<skill>/SKILL.md
 
 | Plugin | Skill | Use |
 |---|---|---|
-| review-fanout | `review-fix-fanout` | After a parallel review: triage findings, fan fixes out to model-tiered subagents with one owner per file, one verification gate |
-| review-fanout | `implement-review-fix-loop` | Implement in disjoint units, then review → fix rounds per unit until no critical/major/minor finding is left: severity scale, convergence rule, diff-scoped reviews, backlog, worktrees, final gate and smoke test (prompt templates included) |
+| review-loop | `review-fix-fanout` | After a parallel review: triage findings, fan fixes out to model-tiered subagents with one owner per file, one verification gate |
+| review-loop | `implement-review-fix-loop` | Implement in disjoint units, then review → fix rounds per unit until no critical/major/minor finding is left: severity scale, convergence rule, diff-scoped reviews, backlog, worktrees, final gate and smoke test (prompt templates included) |
 
 ## Adding a skill
 

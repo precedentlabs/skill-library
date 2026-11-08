@@ -68,10 +68,18 @@ is wrong, and must not reopen a fix an earlier round accepted.
 4. **Triage every finding yourself**: fix / reject with a reason / the spec is wrong →
    write a decision and amend / accept as is. You make the design call; do not hand the
    fixer an open question.
-5. **Fix.** Send to the **same implementer session** (it keeps context): counts, each
+5. **Fix.** Default: send to the **same implementer session** (it keeps context): counts, each
    finding with the decision marked binding, "edit the working tree, do not commit", a regression
    test that fails before the fix, report diff + results. Fixers prove each new test by
    temporarily swapping in the plausible bug, seeing it fail, then reverting.
+
+   **Large or mixed rounds → fan out.** When a round's findings span several files or
+   effort classes (docs wording, a test, a refactor), or the user asked for model tiering,
+   run this step with the `review-fix-fanout` skill: its triage (§1), one-owner-per-file
+   partition (§2), task template (§3) and one-batch spawn (§4) route each finding class to
+   the cheapest adequate model tier. Inside the loop: its fixers also never commit, and its
+   own gate/report (§5–6) are replaced by steps 6–8 here; the orchestrator's triage in step 4
+   is its §1.
 6. **Orchestrator gate + read the fix** before re-review.
 7. **Re-review.** Same reviewer session (or a fresh one for independent eyes on later
    rounds): verify each prior finding is resolved (repro where possible) **and**

@@ -8,6 +8,9 @@ description: Use after a parallel code review of a large uncommitted change prod
 Turn reviewer output into fixes with parallel subagents without file collisions,
 wasted model spend, or a gate that fails at the end.
 
+Standalone, it runs after any review. Inside an `implement-review-fix-loop` it is the fix
+step of a round: fixers do not commit, and the loop's gate and re-review replace §5–6.
+
 ## 1. Triage the findings
 
 Group every finding by **owning file**, then classify by effort:
