@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="skill-library: agent skills from Precedent Labs">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity="0.04"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="300" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="300" rx="24" fill="url(#grid)"/>
+
+  <!-- loop glyph: implement → review → fix -->
+  <g transform="translate(190 150)" fill="none" stroke-linecap="round">
+    <circle r="78" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+    <path d="M 0 -78 A 78 78 0 0 1 67.5 39" stroke="url(#accent)" stroke-width="6"/>
+    <path d="M 67.5 39 A 78 78 0 0 1 -67.5 39" stroke="#a78bfa" stroke-width="6" stroke-opacity="0.75"/>
+    <path d="M -67.5 39 A 78 78 0 0 1 0 -78" stroke="#38bdf8" stroke-width="6" stroke-opacity="0.75"/>
+    <circle cx="0" cy="-78" r="11" fill="#38bdf8"/>
+    <circle cx="67.5" cy="39" r="11" fill="#a78bfa"/>
+    <circle cx="-67.5" cy="39" r="11" fill="#818cf8"/>
+    <text x="0" y="8" text-anchor="middle" fill="#e2e8f0" stroke="none"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="22" font-weight="700">/skill</text>
+  </g>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="330" y="100" fill="#94a3b8" font-size="18" letter-spacing="4" font-weight="600">PRECEDENT LABS</text>
+    <text x="327" y="162" fill="#f8fafc" font-size="64" font-weight="800">skill-library</text>
+    <rect x="330" y="182" width="120" height="5" rx="2.5" fill="url(#accent)"/>
+    <text x="330" y="224" fill="#cbd5e1" font-size="24">Agent workflows distilled from real sessions.</text>
+    <text x="330" y="256" fill="#64748b" font-size="16"
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">claude code plugin marketplace · review loops · triage · optimization</text>
+  </g>
+</svg>
