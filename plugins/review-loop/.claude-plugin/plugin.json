@@ -1,7 +1,14 @@
 {
   "name": "review-loop",
-  "version": "0.2.0",
-  "description": "Subagent review workflows: implement → review → fix loops until clean, and triage plus model-tiered fix fanout after a parallel review.",
-  "author": { "name": "Precedent Labs" },
-  "keywords": ["code-review", "subagents", "parallel", "workflow"]
+  "version": "0.3.0",
+  "description": "Subagent review workflows: implement → review → fix loops until clean, triage of findings into fix/defer/reject decisions, and model-tiered fix fanout after a parallel review.",
+  "author": {
+    "name": "Precedent Labs"
+  },
+  "keywords": [
+    "code-review",
+    "subagents",
+    "parallel",
+    "workflow"
+  ]
 }

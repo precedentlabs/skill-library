@@ -1,6 +1,8 @@
 {
   "name": "precedentlabs-skills",
-  "owner": { "name": "Precedent Labs" },
+  "owner": {
+    "name": "Precedent Labs"
+  },
   "metadata": {
     "description": "Agent skills from Precedent Labs: reusable workflows distilled from real sessions."
   },
@@ -8,8 +10,14 @@
     {
       "name": "review-loop",
       "source": "./plugins/review-loop",
-      "description": "Subagent review workflows: implement → review → fix loops until clean, and triage plus model-tiered fix fanout after a parallel review.",
-      "version": "0.2.0"
+      "description": "Subagent review workflows: implement → review → fix loops until clean, triage of findings into fix/defer/reject decisions, and model-tiered fix fanout after a parallel review.",
+      "version": "0.3.0"
+    },
+    {
+      "name": "optimization",
+      "source": "./plugins/optimization",
+      "description": "Metric-driven optimization loop: profile, one change at a time, measure, accept or reject, regression gate, record. The goal is given on the command line.",
+      "version": "0.1.0"
     }
   ]
 }
