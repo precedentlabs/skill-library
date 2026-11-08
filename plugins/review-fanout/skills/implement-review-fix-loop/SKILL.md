@@ -46,7 +46,7 @@ a concrete fix. Findings the code does not support are not findings.
 
 "Block on every minor" does not converge if every fix round spawns new comment drift.
 From round 2 on, a finding is critical/major/minor **only if** it is (a) a regression
-the unit's own commits caused (including a fix breaking an earlier accepted fix),
+the unit's own changes caused (including a fix breaking an earlier accepted fix),
 (b) a requirement clause still unmet, or (c) a defect on a line the unit added or
 changed. Anything else is `pre-existing:` and goes to the backlog (§4). Reviewers must
 not re-raise a finding the fixer rejected *with a reason* unless they show why the reason
@@ -57,7 +57,7 @@ is wrong, and must not reopen a fix an earlier round accepted.
 1. **Implement.** One implementer per unit. Brief: `# Target` (files, worktree absolute
    path), `# Change` (numbered, binding decisions), `# Tests` (behaviour per rule; a
    regression test that fails before the fix), `# Acceptance`. Rules: use absolute
-   paths, do not run the full gate/formatters (orchestrator does), no commits unless told,
+   paths, do not run the full gate/formatters (orchestrator does), never commit,
    report `files changed / what each change does / tests and what each proves /
    deviations / out of scope`.
 2. **Orchestrator gate + spot-read.** Run build/lint/tests yourself; read the diff. Red
@@ -69,7 +69,7 @@ is wrong, and must not reopen a fix an earlier round accepted.
    write a decision and amend / accept as is. You make the design call; do not hand the
    fixer an open question.
 5. **Fix.** Send to the **same implementer session** (it keeps context): counts, each
-   finding with the decision marked binding, "new commit, do not amend", a regression
+   finding with the decision marked binding, "edit the working tree, do not commit", a regression
    test that fails before the fix, report diff + results. Fixers prove each new test by
    temporarily swapping in the plausible bug, seeing it fail, then reverting.
 6. **Orchestrator gate + read the fix** before re-review.
@@ -84,15 +84,15 @@ round. Record that it was not re-reviewed. Anything touching behaviour gets a re
 
 **Round cap.** Three automatic fix rounds per unit. Still failing → stop, summarise
 the remaining findings, and make a **human round** (read review, verify each finding,
-fix, gate, commit as `... (round N, human)`), then run the review again: human fixes
+fix in the working tree, gate; the orchestrator commits), then run the review again: human fixes
 regress too.
 
 ## 3. Reviewer setup
 
-- Read-only: no edits, no commits, no cargo/gate runs (orchestrator owns those). Allow
+- Read-only: no edits, no commits, no build/test/gate runs (orchestrator owns those). Allow
   scratch edits only if they are reverted.
-- **Scope to the diff**, stated as a command: `git -C <worktree> diff <base>` (or
-  `diff HEAD~1` after commit). "Review ONLY changed lines/hunks."
+- **Scope to the diff**, stated as a command: `git -C <worktree> diff <base>` (the working
+  tree against the unit's base, so uncommitted changes are included). "Review ONLY changed lines/hunks."
 - Give a `Check especially:` list of the risks this unit can break: worst-legal-input
   bounds, shutdown/lifecycle, error shapes, authz, caching, test determinism, etc.
 - Run **two reviewers split by lens** on non-trivial units (implementation vs tests,
@@ -120,14 +120,17 @@ the cheap way to close it.
   clean.
 - Integrate by rebasing each unit's single commit onto the feature branch and
   `merge --ff-only`; conflicts are the orchestrator's, not findings.
-- Commit progressively: one focused commit per unit after its loop passes.
+- Commit progressively: one focused commit per unit, made by the orchestrator (subagents
+  never commit) once the unit's loop passes.
 
 ## 6. Worktrees and build cache
 
 - One worktree per unit, created by a tiny script (`git worktree add ../<repo>-wt/<unit>
   -b fix/<unit>`).
-- Share compile cache: seed each worktree's `target/` as a copy-on-write reflink of the
-  main one (`cp --reflink=auto -r`) or point all at one `CARGO_TARGET_DIR`/sccache. Cap
+- Share the compile/dependency cache so units do not each rebuild from scratch. Rust
+  example: seed each worktree's `target/` as a copy-on-write reflink of the main one
+  (`cp --reflink=auto -r`), or point all at one `CARGO_TARGET_DIR` or sccache; other stacks:
+  a shared package/build cache directory. Cap
   concurrent builds (a lock-slot wrapper, e.g. 2 at once) so parallel units do not
   thrash the machine, and unset environment variables the test suite is sensitive to
   inside the wrapper.
@@ -154,7 +157,8 @@ the cheap way to close it.
 ## Failure modes seen
 
 - Agent stops after a clean-looking round to ask permission → violates the loop; keep going.
-- Doc claims drift from code between rounds ("BLOB not read on 304", rate numbers):
+- Doc claims drift from code between rounds (a doc says "returns 404 on a missing item"
+  after the code started returning 410; a documented limit differs from the constant):
   reviewers must check each doc statement the diff touches against the code.
 - Prompt-quoted constants/examples propagate wrongly into every slice: verify wire facts
   with a scout before writing the contract.

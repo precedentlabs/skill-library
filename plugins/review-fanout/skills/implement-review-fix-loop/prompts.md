@@ -26,7 +26,7 @@ Final report: 1. files changed 2. what each change does 3. tests and what each p
 ```
 Unit <name>, round 1. Worktree <path>, base <sha>.
 Review ONLY changed lines: `git -C <path> diff <base>`. Read-only: no edits, no commits,
-no cargo. Contract: <docs>. Other units (ignore): <list>.
+no build/test runs. Contract: <docs>. Other units (ignore): <list>.
 Bar: critical/major/minor all count; nits are optional. Reserve critical/major for real
 correctness, regression, data-loss, security or rule violations.
 Check especially: <risk list for this unit>
@@ -41,7 +41,7 @@ Last line exactly `VERDICT: PASS` (nothing at or above minor) or `VERDICT: FIX`.
 
 ```
 Review round <N> on your unit: <n> critical, <n> major, <n> minor.
-Fix on the same branch as a NEW commit (do not amend). Binding decisions:
+Fix in the working tree and do NOT commit (the orchestrator commits). Binding decisions:
 - <finding id>: <decision, with evidence>
 Add a regression test that fails before the fix; prove it by temporarily swapping in
 the buggy body, seeing it fail, then reverting. Do not run the full gate.
@@ -52,7 +52,7 @@ Report: `## Finding map` (finding → file:line or test, or `rejected: <reason>`
 ## Re-review (same reviewer session)
 
 ```
-Round <N+1>. The implementer addressed your findings in <commit/working tree>.
+Round <N+1>. The implementer addressed your findings in the working tree.
 Verify each prior finding is resolved (repro where possible): <ids + one-line what changed>.
 Accepted as is: <ids>. Then re-read the whole current diff for anything the fix introduced.
 Later-round rule: block only on regressions caused by this unit, unmet requirement
