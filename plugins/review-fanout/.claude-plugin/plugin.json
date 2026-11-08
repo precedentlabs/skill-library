@@ -1,7 +1,7 @@
 {
   "name": "review-fanout",
-  "version": "0.1.0",
-  "description": "Parallel code review of uncommitted changes, then triage and a model-tiered fix fanout with a single verification gate.",
+  "version": "0.2.0",
+  "description": "Implement → review → fix loops with subagents until no critical, major or minor finding remains, plus triage and a model-tiered fix fanout after a parallel review.",
   "author": { "name": "Precedent Labs" },
   "keywords": ["code-review", "subagents", "parallel", "workflow"]
 }
