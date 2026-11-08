@@ -60,13 +60,18 @@ Rate each verified finding on these axes:
 ### Gates (first match decides)
 
 1. Does not hold, already fixed, or not a defect -> **Reject** (state which).
-2. Contradicts a recorded decision or approved design, or the fix changes a contract
-   or spec -> **Needs decision** (ask; see §5).
+2. Contradicts a recorded decision or approved design, or the only fix would change
+   *behaviour* that a contract promises (public API, wire format, schema, a documented
+   guarantee) -> **Needs decision** (ask; see §5). Documentation that fell behind the code
+   is not this gate: see gate 5.
 3. Security hole, data loss, or correctness failure reachable by real input or default
    config -> **Fix now**, regardless of cost.
 4. Regression introduced by the current change -> **Fix now**.
 5. Requirement or acceptance criterion unmet; observable behaviour with no test; a stale
-   *contract* (API docs, schema/migration notes, another unit's spec) -> **Fix now**.
+   *contract document* (API docs, schema/migration notes, another unit's spec) -> **Fix now**.
+   When a document and the code disagree, the document that states the intended contract
+   decides which side is wrong; if it is genuinely ambiguous, take the conservative side (the
+   one that does not change behaviour), apply it, and say so in the table.
 6. A project must-fix class (§2) -> **Fix now**.
 
 ### Value versus cost (everything left)

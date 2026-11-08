@@ -13,7 +13,7 @@ before doing anything else. Do not guess one.
 
 A metric-driven loop. Every change is justified by a measurement before it and kept or
 reverted by a measurement after it. No change without a profile line that names it; no
-merge without an unchanged-output proof; no claim without a number.
+merge without proof that the invariants declared in §0 hold; no claim without a number.
 
 ## 0. Frame the goal (before touching code)
 
@@ -22,7 +22,7 @@ Write down, in a short plan file kept with the project's notes:
 | Item | Content |
 |---|---|
 | Objective | the metric(s), unit, direction, and the workload(s) it is measured on |
-| Invariants | what must not change: output equivalence, public behaviour, compatibility, durability, security properties |
+| Invariants | what must not change, declared per goal: output equivalence (when the goal is speed or memory), public behaviour, compatibility, durability, security properties. A goal such as token cost or binary size may change output by design: then declare which properties must still hold instead |
 | Guardrails | metrics that must not get worse while the objective improves (memory, size, other paths, cost) |
 | Boundaries | what needs an **operator decision**, never a unilateral one: a project-rule exception, a durability or concurrency trade-off, a new dependency, an architectural change |
 | Stop rules | §6, plus any target the user gave ("2x faster", "under 200 ms") |
@@ -45,8 +45,10 @@ A goal with no measurable form ("make it better") must be turned into a metric f
    result file.
 4. **Noise floor**: run baseline against baseline first (A/A). Its spread is the bar a
    change must clear.
-5. **Equivalence oracle**: freeze a digest of the full output from the baseline on every
-   workload ("golden"). Add the test suite and any correctness corpus the project has.
+5. **Invariant oracles**: for every invariant declared in §0, a check that can fail. When
+   output equivalence is an invariant, freeze a digest of the full output from the baseline
+   on every workload ("golden"). Always add the test suite and any correctness corpus the
+   project has.
 6. **Does the harness see the effect?** If the standard benchmark cannot observe what
    the profile predicts, write a micro-harness that can and keep it with the results;
    note the benchmark gap instead of hiding it.
@@ -74,8 +76,8 @@ candidate research, never concurrent timing.
    idea; the larger version is its own later step, measured against this one.
 2. Optional isolated micro-measurement of the idea first (the effect alone, before wiring).
 3. Build old and new from named commits; measure the targeted effect, interleaved.
-4. **Regression gate**: equivalence digest equal on every workload, correctness corpus
-   equal, full project gate green. A behavioural test for the new rule (property/round-trip
+4. **Regression gate**: every §0 invariant holds (the golden digest equal on every workload
+   when equivalence is one), correctness corpus equal, full project gate green. A behavioural test for the new rule (property/round-trip
    tests for "same order, same bytes" claims). A draft the property test rejects is a
    wrong draft, not a flaky test.
 5. Record (§7), then merge `--no-ff`, remove the worktree, delete the branch. Main stays
@@ -88,13 +90,13 @@ Accept only if all hold:
 
 - the predicted metric moves **outside the noise floor**, in the **predicted direction**,
   on **more than one workload**;
-- every invariant is unchanged (equivalence 100 %, tests, corpus);
+- every §0 invariant holds (equivalence 100 % where declared, tests, corpus);
 - guardrail metrics did not worsen, or the worsening is explained and judged acceptable;
 - a default or tuning setting changes only with the measurement that justifies it in the
   same commit.
 
 Reject (and `git revert` if already merged) when deltas have mixed signs inside the
-spread, the effect vanishes in a clean A/B, or an equivalence check differs. Rejections are
+spread, the effect vanishes in a clean A/B, or an invariant check fails. Rejections are
 recorded with their data exactly like acceptances; they prevent the idea being retried.
 
 Judgement rules:
@@ -133,8 +135,9 @@ State the stop reason explicitly. "Nothing left to optimize" is rarely literally
 Per step (accepted or rejected), in the project's decision log: *Conflict* (the profile
 line, quantified), *Decision*, *Why* (the numbers). Plus a results note with method,
 tables, a "No regression" section, and a directory with the raw data and **the scripts
-used**, so the tooling outlives a scratch directory. Result files are written at the
-end of a run, so an interrupted run leaves nothing half-written.
+used**, so the tooling outlives a scratch directory. Each step's record is written when
+that step finishes, to a temporary file that is then renamed, so an interrupted run never
+leaves a half-written record and always has a last complete step to resume from.
 
 ## 8. Unattended mode
 
@@ -148,7 +151,7 @@ end of a run, so an interrupted run leaves nothing half-written.
 2. Steps table: id, change, measured effect, fate (rejected steps included, with why).
 3. Cumulative table against the named pre-loop build, per workload, **before and after as
    separate numeric columns** (an "a -> b" cell broke a chart renderer once).
-4. Invariants: equivalence results per step, gate status.
+4. Invariants: the check results per step, gate status.
 5. What the profiles leave: remaining items with shares, each tagged *needs decision*
    or *diminishing*.
 6. Explicit asks (rule exceptions, follow-ups, push).
