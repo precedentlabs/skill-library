@@ -72,7 +72,7 @@ duplicate/clone detection). Then expect and handle:
 1. **Duplicate-code / clone detectors** flag the near-identical test setups that
    parallel agents write independently. Send them to a small agent (mid tier) or fix
    them yourself: extract one helper per pair, never weaken assertions.
-2. **Lint nursery noise** on helpers added for tests (e.g. redundant visibility).
+2. **Strict-lint noise** on helpers added for tests (e.g. redundant visibility).
 3. **A new cap/guard breaks an old concurrency test.** When a new bound changes the
    observable mix of outcomes (e.g. some attempts now get 503), adapt the test to the
    invariants that still hold (checked ≤ limit, counted == checked, outcomes sum to
@@ -90,7 +90,7 @@ Per finding: fixed / documented / not done, with the choice made. Then:
 
 ## Pitfalls seen
 
-- Agents asked not to run cargo cannot catch their own breakage: budget a fix round.
+- Agents asked not to build or run tests cannot catch their own breakage: budget a fix round.
 - Two agents sharing a test module both add helpers → duplicates; assign test regions.
 - A reviewer's "fix" option that contradicts the contract doc (README) loses; the doc
   is authoritative, so fix whichever side the doc says is wrong, deliberately.
