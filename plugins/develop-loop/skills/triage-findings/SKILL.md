@@ -11,7 +11,7 @@ argument-hint: 'source of findings: a file path, "last review", or pasted text; 
 If that line is empty or still shows the placeholder, use the arguments given after the
 skill name instead (oh-my-pi appends them as a trailing `User:` line); without any, use, in
 order: the most recent review output in this conversation, then `backlog.md` at the
-repository root; if neither exists, ask where the findings are.
+root of the main checkout; if neither exists, ask where the findings are.
 
 Triage turns a list into decisions and picks the next batch. Its output is a table the
 user can approve in one read; it does not change code. It sits at the top of the
@@ -118,8 +118,8 @@ One table, ordered Fix now -> Needs decision -> Quick sweep -> Defer -> Reject:
 - Then counts per decision, and the **residual risk** of everything not fixed in one
   sentence each for anything that is security, data or correctness related.
 
-Write deferred items to `backlog.md` at the repo root (excluded from git through
-`.git/info/exclude`, never committed) with where, what, and the trigger.
+Write deferred items to `backlog.md` at the root of the main checkout (excluded from
+git through `.git/info/exclude`, never committed) with where, what, and the trigger.
 
 ## 5. Needs-decision items: ask, with a recommendation
 

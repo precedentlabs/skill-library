@@ -83,14 +83,15 @@ concurrent timing: re-measure only after the loop's agents have finished.
    tests for "same order, same bytes" claims). A draft the property test rejects is a
    wrong draft, not a flaky test.
 5. **Develop-loop review** of the accepted change (requires the `develop-loop` plugin):
-   run `implement-review-fix-loop` from its optimize entry (its §0): §2 steps 3–8 on
+   run `implement-review-fix-loop` from its optimize entry (`implement-review-fix-loop` §0):
+   the loop's review and fix steps (`implement-review-fix-loop` §2 steps 3–8) on
    `git -C <worktree> diff main`, with this goal's §0 plan as the contract document,
    until the verdict meets the bar; the orchestrator commits the fixes on the perf branch.
    The loop's integration and finish steps do not apply; out-of-scope findings go to its
    backlog. After the loop passes, re-run step 4 on the fixed branch; when a fix touched
    the measured path, repeat step 3 as well and re-apply §4 (a change that no longer
    qualifies is rejected and recorded like any other). If the review does not reach the
-   bar within the loop's round cap, skip the loop's human round and reject the change:
+   bar within the loop's round cap, skip the loop's takeover round and reject the change:
    record it with its open findings (§7) and remove the worktree; when unattended, list it
    under explicit asks (§9).
 6. Record (§7), then merge `--no-ff`, remove the worktree, delete the branch. Main stays

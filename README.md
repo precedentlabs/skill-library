@@ -79,9 +79,11 @@ Direct invocation needs `skills.enableSkillCommands: true`:
 `/skill:optimize cut cold-start time`, `/skill:triage-findings backlog.md`.
 
 oh-my-pi ignores the `model` of Claude-format plugin agents, so without routing every
-`dl-*` agent runs on the parent's model and the tiers are lost. Route them through model
-roles in `~/.omp/agent/config.yml` (or a project's `.omp/config.yml`); point a role at
-another provider's model to change a tier everywhere:
+`dl-*` agent runs on the parent's model and the tiers are lost. `tiered-fanout` checks the
+routing before its first spawn and, when it is missing, asks once: add it, or run the
+session untiered on the parent's model. Route the `dl-*` agents through model roles in
+`~/.omp/agent/config.yml` (or a project's `.omp/config.yml`); point a role at another
+provider's model to change a tier everywhere:
 
 ```yaml
 modelRoles:
@@ -146,16 +148,20 @@ reviewer verdict **plus** a green gate the orchestrator judged itself.
 
 - **Contract first** — open decisions are written down before any code; work is split into
   units with disjoint file sets, ordered by risk.
+- **Loop size** — trivial, single unit or multi-unit: the size sets which steps apply
+  (decision record, worktree, reviewers, live smoke, minor sweep); gate and review are
+  never skipped.
 - **Explicit severity scale** — critical / major / minor / nit, restated in every reviewer prompt.
 - **Convergence rule** — from round 2 on, only regressions, unmet requirements or defects on
   changed lines block; everything else goes to a backlog instead of looping forever.
-- **Per-round protocol** — implement → gate + spot-read → diff-scoped review
-  (`TIER: keep | up`, `VERDICT: PASS | FIX`) → triage → fix → gate → re-review; implement
-  and fix run through `tiered-fanout`.
+- **Per-round protocol** — implement → gate + spot-read → `git add -N` (so new files
+  show in the diff) → diff-scoped review (`TIER: keep | up`, `VERDICT: PASS | FIX`) →
+  triage → fix → gate → re-review; implement and fix run through `tiered-fanout`.
 - **Reviewer upgrades the fixer** — reviewers always run on `opus-5-5:high`; a review that
   finds many problems in the developer's code sends the next fix round one model above the
   author, on a fresh agent.
-- **Round cap** — three automatic fix rounds with tier escalation, then a human round.
+- **Round cap** — three automatic fix rounds with tier escalation, then a takeover round:
+  the orchestrator fixes the unit itself and has it reviewed again.
 - **Worktrees** per unit when units run in parallel; ready-to-use
   [prompt templates](plugins/develop-loop/skills/implement-review-fix-loop/prompts.md) for
   reviewer, re-review and minor sweep.
@@ -186,8 +192,8 @@ prompts carry only the work.
 - **Escalation ladder** — `haiku-5-5:high` → `sonnet-5-5:high` → `opus-5-5:medium`, one step
   at a time, always to a fresh agent. Triggers: the agent itself struggles and sends a
   *struggle handoff* (its work, the struggle, what it tried) so a stronger model continues
-  from its working tree; two gate/review failures at one tier; a reviewer's `TIER: up`; or
-  the orchestrator's own call.
+  from its working tree; two failed fixes at one tier (red gate, unresolved finding or
+  regression); a reviewer's `TIER: up`; or the orchestrator's own call.
 - **One owner per file** — shared docs belong to one docs task or the parent; code tasks
   report the wording they need instead of editing the doc.
 - **Ask, don't guess** — every spawned agent asks the parent when unsure or blocked; the
@@ -256,7 +262,7 @@ These run through every skill:
 | **The orchestrator owns the gate** | Subagents implement, review and fix; only the orchestrator judges the gate (a cheap runner may execute it) and commits. |
 | **Every change goes through the develop loop** | No change of any size lands without `implement-review-fix-loop`'s gate and review; only runs that change no files, and discarded `optimize` experiments, bypass it. |
 | **Ask, don't guess** | Spawned agents that are unsure or blocked ask the orchestrator instead of working around the problem. |
-| **Cheapest adequate model** | Work is tiered by difficulty; a struggling agent, two failures at one tier, a reviewer's `TIER: up` or the orchestrator's call moves the item one tier up instead of retrying it at the same one. Reviewers always run on the strongest model. |
+| **Cheapest adequate model** | Work is tiered by difficulty; a struggling agent, two failed fixes at one tier, a reviewer's `TIER: up` or the orchestrator's call moves the item one tier up instead of retrying it at the same one. Reviewers always run on the strongest model. |
 | **One owner per file** | Parallel work is partitioned so no two agents ever edit the same file. |
 | **Decisions are written down** | Open questions are settled before code; rejects, deferrals and accepted trade-offs carry their reasons. |
 | **Loops must converge** | Explicit stop conditions, round caps and backlogs instead of endless polishing. |
@@ -271,6 +277,8 @@ that the procedure now guards against.
 .
 ├── .claude-plugin/
 │   └── marketplace.json            # marketplace catalogue (name: precedentlabs-skills)
+├── scripts/
+│   └── lint.py                     # consistency lint: agent bodies, versions, § references, model ids
 └── plugins/
     ├── develop-loop/
     │   ├── .claude-plugin/plugin.json
@@ -297,7 +305,13 @@ that the procedure now guards against.
 4. Update the skill table and the plugin/skill counts in this README.
 5. Agents: the three `dl-implementer-*` files share one body and differ only in `name`,
    `description`, `model` and `effort`; change the body in all three. A model change also
-   goes into the oh-my-pi `modelRoles` snippet above.
+   goes into the oh-my-pi `modelRoles` snippet above. Skill and agent bodies name tiers,
+   not models: model ids live only in the agent frontmatter, the agent table in
+   `tiered-fanout` §4 and this README.
+6. Run `python scripts/lint.py` before committing. It checks that the implementer bodies
+   are identical, plugin versions match in both files, every `§N` reference resolves,
+   model ids appear only where step 5 allows, and this README's agent table and routing
+   snippet match the agent frontmatter.
 
 ## 📄 License
 

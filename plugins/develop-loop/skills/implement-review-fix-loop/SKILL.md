@@ -16,7 +16,7 @@ loop never calls triage; out-of-scope findings reach it through the backlog (§4
 
 **All implementation work goes through this loop**: features, fixes, triage batches,
 accepted `optimize` changes, doc and test changes. A small change runs the same loop at
-its smallest (one unit, one reviewer), never a skipped review. Only runs that change no
+its smallest size (Loop size, §0), never a skipped review. Only runs that change no
 files (tests, the gate, deployments) use `tiered-fanout` without it.
 
 ## 0. Pin the contract before any code
@@ -36,16 +36,34 @@ files (tests, the gate, deployments) use `tiered-fanout` without it.
   hints.
 - **Entry from optimize.** An accepted `optimize` change is one unit, already implemented
   and gated in its perf worktree: start at §2 step 3 on `git -C <worktree> diff main`, with
-  `optimize`'s §0 plan as the contract document, and run steps 3–8 until the verdict meets
-  the bar. The orchestrator commits fixes on the perf branch and reports every fix that
-  touches the measured path. §5 integration and §7 finish do not apply: out-of-scope
+  the plan of `optimize` §0 as the contract document, and run steps 3–8 until the verdict
+  meets the bar. The orchestrator commits fixes on the perf branch and reports every fix
+  that touches the measured path. §5 integration and §7 finish do not apply: out-of-scope
   findings go to the backlog, and `optimize` does the measurement, record and merge. At
-  the round cap there is no human round: stop and hand back to `optimize`, which rejects
-  the change.
+  the round cap there is no takeover round: stop and hand back to `optimize`, which
+  rejects the change.
+
+### Loop size
+
+The size of the change sets which steps apply. Gate and review are never skipped at any
+size; when in doubt take the larger column.
+
+| Step | Trivial | Single unit | Multi-unit |
+|---|---|---|---|
+| What it is | no behaviour change: doc or comment wording, a rename, in one or two files | one file-disjoint unit | several units, in parallel |
+| Decision record (§0) | the request is the record | written and committed when the spec left anything open | written and committed |
+| Scout (§0) | no | when the code map is unknown | when the code map is unknown |
+| Worktree (§6) | no, current checkout | no, current checkout | one per unit |
+| Implementer (§2 step 1) | one, usually Light | one, or several file-disjoint items through `tiered-fanout` | one or more per unit |
+| Gate (§2 steps 2 and 6) | yes | yes | yes, per unit and once integrated (§7 step 1) |
+| Reviewers (§3) | one | one; two split by lens when §3 calls for it | per unit; two split by lens when §3 calls for it |
+| Live smoke (§7 step 2) | no | when observable behaviour changed | yes |
+| Minor sweep (§7 step 3) | no | only with input | only with input |
+| Final report (§7 step 4) | three lines: what changed, gate result, last verdict line | full | full |
 
 ## 1. Stop condition (state it, quote it)
 
-The user's default: **loop until no critical, major or minor finding remains.** Nits
+Default bar: **loop until no critical, major or minor finding remains.** Nits
 are optional (apply the cheap ones). If the user names a different bar (e.g. only
 blocker/major), use theirs. Restate the active bar in the first message to each
 implementer and reviewer, and **quote the last verdict line in every status report**.
@@ -79,13 +97,16 @@ accepted.
 ## 2. The per-round protocol
 
 1. **Implement.** Dispatch the units through `tiered-fanout`: one implementer per unit,
-   spawned as its tier's agent (its §2, §4), briefed with its new-work template (`Spec:` =
-   the unit's decision-record ids) plus the active bar. Implementers ask the orchestrator
-   when unsure or blocked and send a struggle handoff when the work is beyond them; answer
-   or re-assign one step up per its §5.
+   spawned as its tier's agent (`tiered-fanout` §2 and §4), briefed with the new-work
+   template of `tiered-fanout` §4 (`Spec:` = the unit's decision-record ids) plus the
+   active bar. Implementers ask the orchestrator when unsure or blocked and send a struggle
+   handoff when the work is beyond them; answer or re-assign one step up per
+   `tiered-fanout` §5.
 2. **Orchestrator gate + spot-read.** Run build/lint/tests (yourself or via `dl-runner`,
    reading its raw output); read the diff. Red → send the exact failure back to the
-   implementer. Never review red code.
+   implementer. Never review red code. Then run `git -C <worktree> add -N .`
+   (intent-to-add, stages no content) so files the implementer created appear in
+   `git diff`.
 3. **Review.** Fresh `dl-reviewer` agent(s) scoped to the diff (§3). Required output:
    findings with severity, `file:line`, evidence, fix; a `## Out of scope` section; the
    line `TIER: keep` or `TIER: up — <reason>` for the next fix round (§3); last line
@@ -93,18 +114,21 @@ accepted.
 4. **Triage every finding yourself**: fix / reject with a reason / the spec is wrong →
    write a decision and amend / accept as is. You make the design call; do not hand the
    fixer an open question.
-5. **Fix.** Through `tiered-fanout`: each finding with its decision marked binding is a
-   work item, tiered by difficulty. A reviewer's `TIER: up` sends the unit's next fix round
-   one step above the model that wrote the reviewed code, or at the findings' own tier if
-   that is higher (its §2 trigger 3), to a fresh fixer. Otherwise findings in files whose
-   implementer session is live and at or above the fix tier go back to that session (it
-   keeps context); others go to fresh fixers at their tier, or at the tier its §2 sets
-   when a trigger applies (its §4 reuse rule). Fixers that struggle send a struggle handoff
-   and the work moves one step up (its §2, §5). Fixers edit the working tree, never
-   commit, add a regression test that fails before the fix and prove it by temporarily
-   swapping in the plausible bug, seeing it fail, then reverting. The fanout reports per
-   item (its §8); the gate and its fallout (its §7) are steps 6–8 here; step 4 is its §1.
-6. **Orchestrator gate + read the fix** before re-review.
+5. **Fix.** Through `tiered-fanout`:
+   - each finding with its binding decision is a work item, tiered by difficulty
+     (`tiered-fanout` §2);
+   - who gets it (the live implementer session or a fresh fixer, at which tier, including
+     after a reviewer's `TIER: up`) is decided by the reuse rule of `tiered-fanout` §4 and
+     the escalation ladder of `tiered-fanout` §2;
+   - fixers edit the working tree and never commit; every fix adds a regression test that
+     fails before the fix, proven by temporarily swapping in the plausible bug, seeing it
+     fail, then reverting;
+   - a fixer that struggles sends a struggle handoff (`tiered-fanout` §5);
+   - the fanout reports per item (`tiered-fanout` §8); its gate and gate fallout
+     (`tiered-fanout` §7) are steps 6–8 here; step 4 here supplies its decided inputs
+     (`tiered-fanout` §1).
+6. **Orchestrator gate + read the fix** before re-review, then `git -C <worktree> add -N .`
+   again so files the fix created appear in the diff.
 7. **Re-review.** Same reviewer session (or a fresh one for independent eyes on later
    rounds): verify each prior finding is resolved (repro where possible) **and**
    re-read the whole current diff for anything the fix introduced. If the harness cannot
@@ -116,50 +140,51 @@ accepted.
 the orchestrator fixes it inline and confirms with the gate instead of another review
 round. Record that it was not re-reviewed. Anything touching behaviour gets a review.
 
-**Round cap.** Three automatic fix rounds per unit; `tiered-fanout`'s escalation applies
-inside them (struggle handoff, two failures at one tier, a reviewer's `TIER: up`, or the
-orchestrator's call → one step up). Still failing → stop, summarise the remaining
-findings, and make a **human round** (read review, verify each finding, fix in the working
-tree, gate; the orchestrator commits), then run the review again: human fixes regress too.
+**Round cap.** Three automatic fix rounds per unit; escalation inside them is
+`tiered-fanout` §2. **The cap wins over the ladder**: an item that started at Light can
+reach the cap at Standard without ever running on Deep. Still failing → stop, summarise
+the remaining findings, and make a **takeover round**: the orchestrator takes the unit
+over and works without subagents (read the review, verify each finding, fix in the
+working tree, gate), then runs the review again: its own fixes regress too. The unit's
+commit stays the one §5 describes, made once the loop passes. A finding it cannot resolve
+either, or one that needs an operator decision, goes to the user together with the
+remaining findings; the loop stops there.
 
 ## 3. Reviewer setup
 
 - Spawn the `dl-reviewer` agent (`develop-loop:dl-reviewer` in Claude Code; model routing
   per harness in `tiered-fanout` §4): it carries the read-only rules, the ask rule and the
   output format (findings, `## Out of scope`, `TIER:`, `VERDICT:`). Without plugin agents,
-  paste its body at the top of the reviewer prompt and set `opus-5-5:high` with the
-  harness's model option. Read-only: no edits, no commits, no build/test/gate runs
-  (orchestrator owns those); scratch edits only if reverted.
+  paste its body at the top of the reviewer prompt and set the reviewer's model and effort
+  from the agent table in `tiered-fanout` §4. Read-only: no edits, no commits, no
+  build/test/gate runs (orchestrator owns those); scratch edits only if reverted.
 - **Scope to the diff**, stated as a command: `git -C <worktree> diff <base>` (the working
-  tree against the unit's base, so uncommitted changes are included). "Review ONLY changed lines/hunks."
+  tree against the unit's base, so uncommitted changes are included; new files show
+  because of the `add -N` in §2 steps 2 and 6). "Review ONLY changed lines/hunks."
 - Give a `Check especially:` list of the risks this unit can break: worst-legal-input
   bounds, shutdown/lifecycle, error shapes, authz, caching, test determinism, etc.
-- Run **two reviewers split by lens** on non-trivial units (implementation vs tests,
-  or code vs docs/CSS). A single reviewer who already saw the code missed a test-coverage
-  major that a second one caught.
+- Run **two reviewers split by lens** on units that change behaviour or mix kinds of work
+  (implementation vs tests, or code vs docs/CSS); a Trivial change (§0) always takes one.
+  A single reviewer who already saw the code missed a test-coverage major that a second
+  one caught.
 - Tests are judged by: *name the concrete pre-fix or plausible-bug behaviour that makes
   it fail; flag any test that would pass with a buggy implementation.*
 - Quote the contract documents the reviewer must check against (decision record,
   README, mockup) and say which other units' areas to ignore.
-- **Reviewer model: always `opus-5-5:high`** (`dl-reviewer`), whatever tier wrote the
-  code. Reviewers are not tiered and never escalate.
+- **Reviewer model.** Always `dl-reviewer`'s model (the agent table in `tiered-fanout`
+  §4), whatever tier wrote the code. Reviewers are not tiered and never escalate.
 - Reviewers ask the orchestrator when the contract or the scope is unclear, instead of
   assuming; the answer goes into the re-review prompt too.
-- **Reviewers upgrade the fixer's model.** When the developer's code shows many problems,
-  the reviewer writes `TIER: up — <reason>` (else `TIER: keep`) on the line before the
-  final `VERDICT:` line, and the next fix round for that unit runs one step above the
-  model that wrote the reviewed code (or at the findings' own tier, if higher), on a fresh
-  fixer (`tiered-fanout` §2 trigger 3). Default signals: any critical, three or more
-  majors, a misread of the design or contract, the same mistake in several places, or a
-  prior-round fix that did not hold. The orchestrator applies it; the only exception is
-  when its triage rejected the findings the reason rests on, and it records that. When the
-  author ran on `opus-5-5:medium` there is no step up: the orchestrator takes the unit
-  over or asks the user.
+- **Reviewers upgrade the fixer's tier.** The reviewer writes `TIER: up — <reason>` or
+  `TIER: keep` on the line before the final `VERDICT:` line; the signals are in the
+  `dl-reviewer` agent; what the orchestrator does with the line is `tiered-fanout` §2
+  trigger 3.
 
 ## 4. Backlog for everything out of scope
 
 Out-of-diff findings never block and never get fixed in this loop. They go to
-`backlog.md` at the repo root, **excluded from git** (`.git/info/exclude`, not
+`backlog.md` at the root of the main checkout (never inside a unit's worktree, which is
+removed at the end), **excluded from git** (`.git/info/exclude`, not
 `.gitignore`, so the exclusion itself is not committed). Each entry: where, what, which
 round found it. The backlog belongs to `triage-findings`, which selects the next batch from
 it after the loop; the post-loop **minor sweep** (§7) covers only the units' own
@@ -198,8 +223,11 @@ leftovers, never backlog entries.
 2. **Live smoke**: run the real system on a throwaway instance and exercise the changed
    paths in a browser/CLI. Reviews that read code miss rendering and integration bugs;
    smoke tests have caught defects after several clean review rounds.
-3. **Minor sweep** for each unit's own leftovers: minors and nits from the units' last
-   PASS reviews on lines they changed (backlog entries go to `triage-findings`, never here).
+3. **Minor sweep** for each unit's own leftovers. Run it only when it has input: minors
+   from the units' last PASS reviews left on changed lines because the bar excluded them,
+   or nits you decided to apply (backlog entries go to `triage-findings`, never here).
+   Under the default bar a PASS leaves no minors; with no nits worth applying, skip the
+   sweep and say so in the final report.
    Scope it (inefficiency, stale docs, design-doc divergence, duplication), skip
    test-style nits and anything needing an operator decision, and decide every item
    yourself before dispatch (§2 step 4). Then run it as one more round: dispatch through
@@ -219,7 +247,7 @@ leftovers, never backlog entries.
 - Prompt-quoted constants/examples propagate wrongly into every slice: verify wire facts
   with a scout before writing the contract.
 - Reviewer by reading cannot prove formatting/line-length: let the formatter decide.
-- A human or inline fix at the end is not re-reviewed unless you do it; say so.
+- A takeover or inline fix at the end is not re-reviewed unless you do it; say so.
 - Reviewers re-raising rejected findings burn rounds: require the rejection reason in the
   fix summary (`## Finding map`: finding → `file:line`/test, or `rejected: reason`).
 

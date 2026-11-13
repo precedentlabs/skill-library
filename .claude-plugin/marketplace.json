@@ -11,13 +11,13 @@
       "name": "develop-loop",
       "source": "./plugins/develop-loop",
       "description": "Develop loop for all implementation work: triage selects the next batch of findings to fix, an implement → review → fix loop runs every change until clean, and a model-tiered fanout does the work with the cheapest adequate model per task.",
-      "version": "0.4.0"
+      "version": "0.5.0"
     },
     {
       "name": "optimization",
       "source": "./plugins/optimization",
       "description": "Metric-driven optimization loop: profile, one change at a time, measure, accept or reject, regression gate, develop-loop review, record. The goal is given on the command line.",
-      "version": "0.2.0"
+      "version": "0.2.1"
     }
   ]
 }

@@ -1,6 +1,6 @@
 ---
 name: tiered-fanout
-description: Use when implement-review-fix-loop dispatches its implement or fix work (feature units, approved findings, a sweep list) to parallel subagents, each on the cheapest model adequate for its difficulty, or when tests, the gate or a deployment should be run by a cheap runner. Covers difficulty classes and model tiers, the per-tier plugin agents (dl-implementer-light/standard/deep, dl-runner, dl-reviewer) and their model routing in Claude Code and oh-my-pi, the escalation ladder and struggle handoff, one-owner-per-file partitioning, self-contained task prompts, answering subagents that ask, one-batch spawn, and gate fallout. Not for implementation work outside the develop loop (every code or doc change goes through implement-review-fix-loop), deciding what to fix (triage-findings), or reviewing.
+description: Use when implement-review-fix-loop dispatches implement or fix work to parallel subagents, each on the cheapest model tier adequate for its difficulty, or when tests, the gate or a deployment should be run by a cheap runner. Not for code or doc changes outside the develop loop, deciding what to fix (triage-findings), or reviewing.
 ---
 
 # Tiered fanout: develop or fix with model-tiered subagents
@@ -31,11 +31,11 @@ docs), pick the conservative one, state it in the task, and say so in the report
 
 ## 2. Classify difficulty → model tier
 
-| Tier | Model:effort | Work |
-|---|---|---|
-| Light | `haiku-5-5:high` | docs and comment wording, doc table rows, simple tests in an existing harness, mechanical edits (renames, config entries, boilerplate from a given template), running tests or the gate and reporting raw output, deployments the user asked for |
-| Standard | `sonnet-5-5:high` | small to medium coding work: a handler, endpoint or feature following an existing pattern, rewriting one function, non-trivial tests, bounding a resource with an existing primitive; no complicated algorithms |
-| Deep | `opus-5-5:medium` | multi-module work, concurrency and lifecycle, complex algorithms, optimisations, startup/migration ordering, wire-format and security invariants, refactoring a shared primitive, fixes with two plausible directions, any large task that needs complex reasoning |
+| Tier | Work |
+|---|---|
+| Light | docs and comment wording, doc table rows, simple tests in an existing harness, mechanical edits (renames, config entries, boilerplate from a given template), running tests or the gate and reporting raw output, deployments the user asked for |
+| Standard | small to medium coding work: a handler, endpoint or feature following an existing pattern, rewriting one function, non-trivial tests, bounding a resource with an existing primitive; no complicated algorithms |
+| Deep | multi-module work, concurrency and lifecycle, complex algorithms, optimisations, startup/migration ordering, wire-format and security invariants, refactoring a shared primitive, fixes with two plausible directions, any large task that needs complex reasoning |
 
 - Classify per item, not per batch. An item merged from several (§3) takes the highest
   tier of its parts.
@@ -49,32 +49,38 @@ docs), pick the conservative one, state it in the task, and say so in the report
   spawn the agent of the tier the mapping names. For a model no agent carries: in Claude
   Code pass the Agent call's `model` (alias) and `effort`; in oh-my-pi change the role in
   `modelRoles`. If neither works, stop and say so.
-- Reviewers are not tiered: they always run on `opus-5-5:high`
-  (`implement-review-fix-loop` §3).
+- Reviewers are not tiered: they always run on `dl-reviewer`'s model (§4;
+  `implement-review-fix-loop` §3).
 
 ### Escalation ladder
 
-`haiku-5-5:high` → `sonnet-5-5:high` → `opus-5-5:medium`, one step at a time; never skip a
-step and never move down mid-item. An item's **current tier** is the tier of the agent that
-last worked on it (after a reuse, the session's tier, not the item's class); every step up
-starts from there and goes to a fresh agent, never back to the session that held the item.
-Four triggers move an item up:
+Light → Standard → Deep, one step at a time; never skip a step and never move down
+mid-item. An item's **current tier** is the tier of the agent that last worked on it
+(after a reuse, the session's tier, not the item's class); every step up starts from there
+and goes to a fresh agent, never back to the session that held the item. Four triggers
+move an item up:
 
 1. **The agent struggles** (§5 draws the line between struggling and asking). It stops
    editing and sends the parent a **struggle handoff** (template in the agent's system
    prompt, §4); the parent re-assigns the item one step up at once (§5).
-2. **Gate or review fails twice** on the same item at its current tier. The next attempt
-   goes one step up; never a third try at the same tier.
+2. **A fix fails twice** at the item's current tier. A failure is one of: the gate is red
+   on the item's files after its agent reported done; the re-review reports a prior
+   finding on the item unresolved; the fix introduced a regression. A `VERDICT: FIX` that
+   only carries new findings is not a failure. Failures are counted per work item, not per
+   unit: a unit's verdict is not an item's count. After the second failure the next
+   attempt goes one step up; never a third try at the same tier.
 3. **The reviewer upgrades the fixer.** When a review finds many problems in the
-   developer's code, its `TIER: up` line sends the unit's next fix round one step above the
-   model that wrote the reviewed code, or to the findings' own tier if that is higher. The
-   orchestrator applies it unless its triage rejected the findings the reason rests on, and
-   records that (`implement-review-fix-loop` §3).
+   developer's code, the reviewer's `TIER: up` line sends the unit's next fix round to a
+   fresh fixer one step above the tier that wrote the reviewed code, or at the findings'
+   own tier if that is higher. The orchestrator applies it unless its triage rejected the
+   findings the reason rests on, and records that (`implement-review-fix-loop` §2 step 4).
 4. **The parent's call.** The parent may move an item up on its own judgement when it sees
    the item exceeds the current tier (§5), without waiting for a report.
 
-Deep has no step above. On any trigger at Deep (struggle handoff, second gate/review
-failure, reviewer `TIER: up`) the parent takes the item over or asks the user. Record every
+Deep has no step above. On any trigger at Deep (struggle handoff, second failed fix,
+reviewer `TIER: up`) the parent takes the item over itself, working as in the loop's
+takeover round (no subagents: verify, fix, gate; `implement-review-fix-loop` §2), or asks
+the user; the unit's other items and its round count go on unchanged. Record every
 escalation and its trigger for the report.
 
 ## 3. Partition by file, one owner per file
@@ -111,12 +117,19 @@ prompt carries only the item. Model routing per harness:
 - **Claude Code** reads `model` and `effort` from the agent file; plugin agents are named
   `develop-loop:<agent>` there (e.g. `develop-loop:dl-runner`).
 - **oh-my-pi** ignores `model` in Claude-format plugin agents; route the agents through
-  model roles (`task.agentModelOverrides` → `modelRoles`, see the README). Without that
-  config every agent runs on the parent's model: before the first spawn, confirm that
-  `task.agentModelOverrides` routes all five `dl-*` agents (global or project config);
-  without it, stop and point the user to the README snippet, never run the tiers on the
-  parent's model. `disallowedTools` does not apply there either: `dl-reviewer` and
-  `dl-runner` stay read-only by their prompts.
+  model roles (`task.agentModelOverrides` → `modelRoles`) in `~/.omp/agent/config.yml`
+  (global) or `.omp/config.yml` (project). Before the first spawn read both and confirm
+  that all five `dl-*` agents are routed. If one is missing, the entries to add are one
+  `modelRoles` entry per row of the agent table (`dl_light`, `dl_standard`, `dl_deep`,
+  `dl_review`, each `<provider>/<model>:<effort>`) and `task.agentModelOverrides` mapping
+  each agent to its role as `"@<role>"` (`dl-runner` → `@dl_light`); the repository README
+  has it written out. If they are not routed, ask the user **once** with two options:
+  (a) add the routing and continue tiered, or (b) run this session untiered, every agent
+  on the parent's model. Never fall back silently. Under (b) classification, ownership and
+  reports still apply, the ladder has no steps (a struggle handoff or a second failed fix
+  goes straight to the parent, as at Deep), and the report states that tiers were not
+  applied. Tool limits (`disallowedTools`) do not apply in oh-my-pi either: `dl-reviewer`
+  and `dl-runner` stay read-only by their prompts.
 - **A harness without plugin agents**: paste the agent file's body at the top of the task
   prompt and set model and effort with the harness's own option.
 
@@ -156,6 +169,9 @@ Round <N> findings on your files: <n> critical, <n> major, <n> minor.
 Binding decisions:
 - <finding id>: <decision, with evidence>
 ```
+
+The diff includes new files because the loop's orchestrator ran `add -N` before the review
+(`implement-review-fix-loop` §2 steps 2 and 6).
 
 **Runner:**
 
@@ -197,15 +213,14 @@ Do not poll; answer questions (§5) and do productive work while they run. The o
 parent makes meanwhile: apply the doc wording agents report, serialized after the docs
 task finishes (editing a doc while its owner is still running clobbers lines).
 
-Verify doc edits by reading the result. Replacing a line range with fewer lines than the
-range silently eats neighbouring text; re-read the region after each range edit.
+Verify doc edits by reading the result.
 
 ## 7. Gate fallout after a fanout
 
-Implementers do not build. After every task is back, the loop's orchestrator runs the
-project's full gate exactly once, in the repo's documented order (format, lint, tests,
-other checks, duplicate/clone detection), itself or through `dl-runner`, whose raw
-output it reads and judges. Expect and handle:
+Implementers do not build. After every task of the batch (§6) is back, the loop's
+orchestrator runs the project's full gate once per batch (never once per task), in the
+repo's documented order (format, lint, tests, other checks, duplicate/clone detection),
+itself or through `dl-runner`, whose raw output it reads and judges. Expect and handle:
 
 1. **Duplicate-code / clone detectors** flag the near-identical test setups that parallel
    agents write independently. Dispatch them as fix items (Standard tier): extract one
@@ -222,8 +237,8 @@ output it reads and judges. Expect and handle:
 ## 8. Report to the loop
 
 Per item: done (implemented / fixed / documented / run) or not done, the choice made, the
-tier it ran at and any escalation with its trigger (struggle handoff, repeated gate/review
-failure, reviewer `TIER: up`, parent's call). Then:
+tier it ran at and any escalation with its trigger (struggle handoff, second failed fix,
+reviewer `TIER: up`, parent's call). Then:
 
 - questions agents asked and the answers given, when they changed the design
 - anything unexercised (not run live, behaviour only structurally testable)
@@ -244,3 +259,5 @@ failure, reviewer `TIER: up`, parent's call). Then:
 - An agent that hides a struggle (keeps patching until a test passes by accident) costs
   more than the upgrade would; the handoff is the expected path and the agent's prompt
   says so.
+- Replacing a line range with fewer lines than the range silently eats neighbouring text;
+  re-read the region after each range edit.
