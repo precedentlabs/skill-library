@@ -35,6 +35,6 @@
     <rect x="330" y="182" width="120" height="5" rx="2.5" fill="url(#accent)"/>
     <text x="330" y="224" fill="#cbd5e1" font-size="24">Agent workflows distilled from real sessions.</text>
     <text x="330" y="256" fill="#64748b" font-size="16"
-          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">claude code plugin marketplace · review loops · triage · optimization</text>
+          font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">claude code plugin marketplace · develop loop · triage · optimization</text>
   </g>
 </svg>

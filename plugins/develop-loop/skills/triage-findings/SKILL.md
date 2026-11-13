@@ -1,6 +1,6 @@
 ---
 name: triage-findings
-description: Use when there is a pile of findings (a review report, a backlog file, scanner or scout output, a minor sweep list) and the user asks what is worth fixing, or says "fix the ones worth fixing". Verifies each finding, scores value against cost and risk with explicit criteria, and returns a decision per finding (fix now, quick sweep, defer, reject, needs a decision) with reasons. The findings source is given after the command, for example /review-loop:triage-findings backlog.md. Not for writing the fixes themselves.
+description: Use when there is a pile of findings (a review report, a backlog file, scanner or scout output, a minor sweep list) and the user asks what is worth fixing, what to fix next, or says "fix the ones worth fixing". Verifies each finding, scores value against cost and risk with explicit criteria, returns a decision per finding (fix now, quick sweep, defer, reject, needs a decision) with reasons, and selects the next batch to hand to implement-review-fix-loop. The findings source is given after the command, for example /develop-loop:triage-findings backlog.md. Not for writing the fixes themselves.
 argument-hint: 'source of findings: a file path, "last review", or pasted text; optionally a bar such as "security only"'
 ---
 
@@ -8,13 +8,15 @@ argument-hint: 'source of findings: a file path, "last review", or pasted text; 
 
 **Source (and optional bar):** $ARGUMENTS
 
-If that line is empty or still shows the placeholder, use, in order: the most recent review
-output in this conversation, then `backlog.md` at the repository root; if neither exists,
-ask where the findings are.
+If that line is empty or still shows the placeholder, use the arguments given after the
+skill name instead (oh-my-pi appends them as a trailing `User:` line); without any, use, in
+order: the most recent review output in this conversation, then `backlog.md` at the
+repository root; if neither exists, ask where the findings are.
 
-Triage turns a list into decisions. Its output is a table the user can approve in one
-read; it does not change code. Fixes are handed to `review-fix-fanout` (model-tiered,
-one owner per file) or `implement-review-fix-loop` (when the work needs review rounds).
+Triage turns a list into decisions and picks the next batch. Its output is a table the
+user can approve in one read; it does not change code. It sits at the top of the
+hierarchy: the batch goes to `implement-review-fix-loop`, which implements and reviews it
+and runs the work through `tiered-fanout` (model tier per difficulty, one owner per file).
 
 ## 1. Verify before judging
 
@@ -110,8 +112,8 @@ One table, ordered Fix now -> Needs decision -> Quick sweep -> Defer -> Reject:
 ```
 
 - `Verified`: yes (how: repro / trace) / no (what would verify).
-- `Hand-off` for fixes: owning file(s) and suggested model tier (docs and mechanical
-  -> cheapest; pattern-following -> mid; design or cross-cutting -> strongest).
+- `Hand-off` for fixes: owning file(s) and difficulty class (Light / Standard / Deep, as
+  defined in `tiered-fanout` §2); the loop passes it on as a tier hint.
 - `Defer` rows carry the trigger; `Reject` rows carry the reason.
 - Then counts per decision, and the **residual risk** of everything not fixed in one
   sentence each for anything that is security, data or correctness related.
@@ -126,14 +128,37 @@ options with the trade-off, and a recommended one. Typical triggers: finding ver
 recorded decision, fix departs from approved design, security versus compatibility,
 large cost for moderate value. Do not start fixing them in the meantime.
 
-## 6. Hand-off and the loop
+## 6. Select the next batch
 
-After the user approves the table:
+From the approved *Fix now* and *Quick sweep* rows, pick what the next loop run takes:
 
-- *Fix now* and *Quick sweep* -> `review-fix-fanout` (partition by file, tier by model) or
-  `implement-review-fix-loop` when review rounds are needed;
-- re-triage only what the fix introduced; do not reopen rejected items unless the
-  reporter shows why the reason is wrong;
+1. **Order** by the gate that decided the row (security/data/correctness → regression →
+   unmet requirement or stale contract → project must-fix class → value-versus-cost),
+   then by re-rated severity, then cheaper first.
+2. **Group** rows that share an owning file or a root cause; a group goes in whole or not
+   at all. *Quick sweep* rows ride along with the group that owns their file; rows with no
+   *Fix now* group left for their file form one sweep group of their own (it counts toward
+   the cap).
+3. **Cap** the batch at the user's limit, else 5 file-disjoint groups. A high-cost or
+   high-risk *Fix now* row is a batch of its own.
+4. **Hold back** rows waiting on a *Needs decision* answer or on another row's fix.
+
+Rows left out stay in the table as `queued` with their order; the table, not memory, is
+the queue.
+
+## 7. Hand-off and the loop
+
+After the user approves the table and the batch:
+
+- the batch goes to `implement-review-fix-loop` with the loop's stop bar: a severity bar
+  the user named for the loop, else its default (no critical, major or minor). A selection
+  bar given to triage (e.g. "security only") only filters rows here; it is never passed to
+  the loop. Nothing is handed straight to fixers, so every fix gets a review;
+- when the loop ends, triage only what is new (its backlog entries and out-of-scope
+  findings, plus anything the fixes introduced), merge it into the queue, and select the
+  next batch. Show the new rows and the next batch for approval; rows already approved and
+  queued need no second approval. Stop when the queue is empty or the user stops;
+- do not reopen rejected items unless the reporter shows why the reason is wrong;
 - keep the table: it is the record of what was decided and why.
 
 ## Pitfalls seen

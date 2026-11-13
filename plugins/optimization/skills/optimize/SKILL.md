@@ -8,8 +8,9 @@ argument-hint: 'goal, e.g. "cut cold-start time" or "reduce API token spend"'
 
 **Goal:** $ARGUMENTS
 
-If the goal line above is empty or still shows the placeholder, ask the user for the goal
-before doing anything else. Do not guess one.
+If the goal line above is empty or still shows the placeholder, use the arguments given
+after the skill name instead (oh-my-pi appends them as a trailing `User:` line); without
+any, ask the user for the goal before doing anything else. Do not guess one.
 
 A metric-driven loop. Every change is justified by a measurement before it and kept or
 reverted by a measurement after it. No change without a profile line that names it; no
@@ -56,8 +57,9 @@ A goal with no measurable form ("make it better") must be turned into a metric f
    parallel default can distort latency by 2-4x.
 
 Do not run measurements while builds, test suites or other agents compete for the
-machine. This loop is serial by design; subagents may do read-only profile analysis or
-candidate research, never concurrent timing.
+machine. This loop is serial by design; subagents may do read-only profile analysis,
+candidate research, and the develop-loop review and fix rounds (§3 step 5), never
+concurrent timing: re-measure only after the loop's agents have finished.
 
 ## 2. Profile first
 
@@ -80,9 +82,20 @@ candidate research, never concurrent timing.
    when equivalence is one), correctness corpus equal, full project gate green. A behavioural test for the new rule (property/round-trip
    tests for "same order, same bytes" claims). A draft the property test rejects is a
    wrong draft, not a flaky test.
-5. Record (§7), then merge `--no-ff`, remove the worktree, delete the branch. Main stays
+5. **Develop-loop review** of the accepted change (requires the `develop-loop` plugin):
+   run `implement-review-fix-loop` from its optimize entry (its §0): §2 steps 3–8 on
+   `git -C <worktree> diff main`, with this goal's §0 plan as the contract document,
+   until the verdict meets the bar; the orchestrator commits the fixes on the perf branch.
+   The loop's integration and finish steps do not apply; out-of-scope findings go to its
+   backlog. After the loop passes, re-run step 4 on the fixed branch; when a fix touched
+   the measured path, repeat step 3 as well and re-apply §4 (a change that no longer
+   qualifies is rejected and recorded like any other). If the review does not reach the
+   bar within the loop's round cap, skip the loop's human round and reject the change:
+   record it with its open findings (§7) and remove the worktree; when unattended, list it
+   under explicit asks (§9).
+6. Record (§7), then merge `--no-ff`, remove the worktree, delete the branch. Main stays
    clean after every step.
-6. **Re-profile main.** The next candidate comes from the new profile, not the old one.
+7. **Re-profile main.** The next candidate comes from the new profile, not the old one.
 
 ## 4. Accept / reject
 
@@ -112,8 +125,8 @@ Judgement rules:
 ## 5. Delegation
 
 The loop itself is serial. Use subagents for: reading profiles, researching candidate
-techniques, writing the micro-harness, reviewing an accepted diff (optionally with the
-`implement-review-fix-loop` skill). Never for timing runs.
+techniques, writing the micro-harness, and the develop-loop review of every accepted diff
+(§3 step 5). Never for timing runs.
 
 ## 6. Stop rules
 
@@ -151,7 +164,8 @@ leaves a half-written record and always has a last complete step to resume from.
 2. Steps table: id, change, measured effect, fate (rejected steps included, with why).
 3. Cumulative table against the named pre-loop build, per workload, **before and after as
    separate numeric columns** (an "a -> b" cell broke a chart renderer once).
-4. Invariants: the check results per step, gate status.
+4. Invariants: the check results per step, gate status, and the develop-loop's last
+   `VERDICT:` line for each accepted step.
 5. What the profiles leave: remaining items with shares, each tagged *needs decision*
    or *diminishing*.
 6. Explicit asks (rule exceptions, follow-ups, push).

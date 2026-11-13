@@ -1,7 +1,8 @@
 {
   "name": "optimization",
-  "version": "0.1.0",
-  "description": "Metric-driven optimization loop: profile, one change at a time, measure, accept or reject, regression gate, record. Goal is given on the command line.",
+  "version": "0.2.0",
+  "description": "Metric-driven optimization loop: profile, one change at a time, measure, accept or reject, regression gate, develop-loop review, record. Goal is given on the command line.",
+  "dependencies": ["develop-loop"],
   "author": { "name": "Precedent Labs" },
   "license": "MIT",
   "keywords": ["performance", "optimization", "benchmarking", "profiling", "workflow"]
