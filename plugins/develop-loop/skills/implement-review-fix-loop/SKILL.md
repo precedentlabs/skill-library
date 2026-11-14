@@ -6,14 +6,16 @@ description: Use for all implementation work - any request to implement, change 
 # Implement → review → fix, until clean
 
 The orchestrator decides, gates and commits. Subagents implement, review and fix. The
-orchestrator edits a unit's files only in these cases, never otherwise to apply a
-finding, however small: the cosmetic tail and the takeover round (§2); an item
-`tiered-fanout` §2 hands to the parent (a trigger at Deep, or any trigger in an
-untiered session, `tiered-fanout` §4); doc wording a subagent reported for a shared doc
-(`tiered-fanout` §3 and §6). Nothing is "done" on a subagent's word: the
-loop ends only on a reviewer verdict (or the cosmetic tail, §2) **plus** a green gate
-owned by the orchestrator (run by it, or by `dl-runner` whose raw output it reads and
-judges).
+orchestrator edits a unit's files only in these cases, never otherwise to apply a finding,
+however small: the cosmetic tail and the takeover round (§2); an item `tiered-fanout` §2
+hands to the parent (a trigger at Deep, or any trigger in an untiered session,
+`tiered-fanout` §4); doc wording a subagent reported for a shared doc (`tiered-fanout` §3
+and §6); a gate diagnostic whose exact fix the tool prints (a compile error at a named
+line, a lint with its suggested replacement, a format diff), a few lines in one file,
+applied as printed and confirmed by the gate (`tiered-fanout` §7). Nothing is "done" on a
+subagent's word: the loop ends only on a reviewer verdict (or the cosmetic tail, §2)
+**plus** a green gate owned by the orchestrator (run by it, or by `dl-runner` whose raw
+output it reads and judges).
 
 Place in the hierarchy: `triage-findings` selects a batch → this loop → `tiered-fanout`
 does the implement and fix work, each item on the model tier its difficulty needs. The
@@ -35,6 +37,9 @@ files (tests, the gate, deployments) use `tiered-fanout` without it.
   Claude Code `Explore`, oh-my-pi `scout`); implementers read its briefing instead of
   exploring.
 - One worktree per unit when units run in parallel (§6).
+- Decide whether implementers can build and run tests in this environment, and say so in
+  every task (the `tiered-fanout` §4 template). Where they cannot, the orchestrator proves
+  each regression test fails (§2 step 6).
 - **Entry from triage.** An approved batch from `triage-findings`: each group in the batch
   (rows sharing an owning file or a root cause) becomes one unit and stays whole; a sweep
   group becomes one sweep unit. The table's difficulty hints go to `tiered-fanout` as tier
@@ -108,10 +113,10 @@ accepted.
    handoff when the work is beyond them; answer or re-assign one step up per
    `tiered-fanout` §5.
 2. **Orchestrator gate + spot-read.** Run build/lint/tests (yourself or via `dl-runner`,
-   reading its raw output); read the diff. Red → send the exact failure back to the
-   implementer. Never review red code. Then run `git -C <worktree> add -N .`
-   (intent-to-add, stages no content) so files the implementer created appear in
-   `git diff`.
+   reading its raw output); read the diff. Red → apply a fix the tool prints, as the top of
+   this skill allows; else send the exact failure back to the implementer. Never review red
+   code. Then run `git -C <worktree> add -N .` (intent-to-add, stages no content) so files
+   the implementer created appear in `git diff`.
 3. **Review.** Fresh `dl-reviewer` agent(s) scoped to the diff (§3). Required output:
    findings with severity, `file:line`, evidence, fix; a `## Out of scope` section; the
    line `TIER: keep` or `TIER: up — <reason>` for the next fix round (§3); last line
@@ -129,13 +134,16 @@ accepted.
      the escalation ladder of `tiered-fanout` §2;
    - fixers edit the working tree and never commit; every fix adds a regression test that
      fails before the fix, proven by temporarily swapping in the plausible bug, seeing it
-     fail, then reverting;
+     fail, then reverting (by the fixer, or by the orchestrator in step 6 where fixers
+     cannot run tests);
    - a fixer that struggles sends a struggle handoff (`tiered-fanout` §5);
    - the fanout reports per item (`tiered-fanout` §8); its gate and gate fallout
      (`tiered-fanout` §7) are steps 6–8 here; step 4 here supplies its decided inputs
      (`tiered-fanout` §1).
-6. **Orchestrator gate + read the fix** before re-review, then `git -C <worktree> add -N .`
-   again so files the fix created appear in the diff.
+6. **Orchestrator gate + read the fix** before re-review. Where fixers could not run
+   tests, run each break they reported: apply it, run the named test, see it fail,
+   revert; a test that still passes goes back as a finding. Then run
+   `git -C <worktree> add -N .` again so files the fix created appear in the diff.
 7. **Re-review.** Same reviewer session (or a fresh one for independent eyes on later
    rounds): verify each prior finding is resolved (repro where possible) **and**
    re-read the whole current diff for anything the fix introduced. If the harness cannot
@@ -143,11 +151,12 @@ accepted.
    the re-review block.
 8. Repeat 4–7 until the verdict meets the bar.
 
-**Cosmetic tail.** From round 2 on, when at most two items are still open and each is
-a comment, a doc line that changes no stated fact, or a format fix, the orchestrator
-fixes them inline and confirms with the gate instead of another review round. Record
-that they were not re-reviewed. Round 1 findings, more than two items, or anything
-touching behaviour go through step 5.
+**Cosmetic tail.** From round 2 on, when at most two items are still open and each is a
+comment, a doc line that changes no stated fact, a format fix, or a change with no
+behaviour that the compiler or lint verifies (a narrower visibility, an unused import
+removed, a large variant boxed), the orchestrator fixes them inline and confirms with the
+gate instead of another review round. Record that they were not re-reviewed. Round 1
+findings, more than two items, or anything touching behaviour go through step 5.
 
 **Round cap.** Three automatic fix rounds per unit; escalation inside them is
 `tiered-fanout` §2. **The cap wins over the ladder**: an item that started at Light can

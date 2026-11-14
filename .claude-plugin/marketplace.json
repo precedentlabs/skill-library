@@ -11,7 +11,7 @@
       "name": "develop-loop",
       "source": "./plugins/develop-loop",
       "description": "Develop loop for all implementation work: triage selects the next batch of findings to fix, an implement → review → fix loop runs every change until clean, and a model-tiered fanout does the work with the cheapest adequate model per task.",
-      "version": "0.5.2"
+      "version": "0.5.3"
     },
     {
       "name": "optimization",

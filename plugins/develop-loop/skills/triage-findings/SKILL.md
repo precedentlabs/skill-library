@@ -148,7 +148,9 @@ the queue.
 
 ## 7. Hand-off and the loop
 
-After the user approves the table and the batch:
+After the user approves the table and the batch (a request that already asks to fix, such
+as "triage and fix" or "fix the ones worth fixing", approves the Fix now and Quick sweep
+rows; ask only the Needs decision items, §5):
 
 - the batch goes to `implement-review-fix-loop` with the loop's stop bar: a severity bar
   the user named for the loop, else its default (no critical, major or minor). A selection

@@ -103,6 +103,10 @@ task:
 Tool limits (`disallowedTools`) are Claude Code only: in oh-my-pi, `dl-reviewer` and
 `dl-runner` stay read-only by their prompts.
 
+Set each spawn's thinking level in one place: oh-my-pi's task `effort` overrides a
+`:level` on the role or model (`hi` is the model's highest level), so the skills
+never pass it.
+
 ## 🧰 The skills
 
 | Plugin | Skill | In one line |
@@ -161,8 +165,9 @@ itself.
   to subagents, and the orchestrator edits only in the few cases the skill lists, such as
   the takeover round below.
 - **Reviewer upgrades the fixer** — reviewers always run on `opus-5-5:high`; a review that
-  finds many problems in the developer's code sends the next fix round to a fresh agent
-  one tier above the author, or at the findings' own tier if that is higher.
+  finds many problems in the developer's code sends the next round's findings that need
+  the author's reasoning to a fresh agent one tier above the author, or at the findings'
+  own tier if that is higher.
 - **Round cap** — three automatic fix rounds with tier escalation, then a takeover round:
   the orchestrator fixes the unit itself and has it reviewed again.
 - **Worktrees** per unit when units run in parallel; ready-to-use
@@ -182,8 +187,8 @@ that fails at the very end. On its own it only runs tests, the gate or deploymen
 
 | Tier | Agent | Model:effort | Work |
 |---|---|---|---|
-| Light | `dl-implementer-light`, `dl-runner` | `haiku-5-5:high` | docs, simple tests, mechanical edits, running tests, deployments |
-| Standard | `dl-implementer-standard` | `sonnet-5-5:high` | small to medium coding work, no complicated algorithms |
+| Light | `dl-implementer-light`, `dl-runner` | `haiku-5-5:high` | docs, simple tests, mechanical edits and call-site migrations, mechanical lint fixes, running tests, deployments |
+| Standard | `dl-implementer-standard` | `sonnet-5-5:high` | small to medium coding work, new small primitives, missing test cases, dedupe helpers; no complicated algorithms |
 | Deep | `dl-implementer-deep` | `opus-5-5:medium` | multi-module work, concurrency, complex algorithms, optimisations, large reasoning-heavy tasks |
 | Review | `dl-reviewer` | `opus-5-5:high` | every review in the loop, read-only |
 
@@ -199,10 +204,13 @@ prompts carry only the work.
   regression); a reviewer's `TIER: up`; or the orchestrator's own call.
 - **One owner per file** — shared docs belong to one docs task or the parent; code tasks
   report the wording they need instead of editing the doc.
+- **Fresh, small contexts for follow-ups** — a fix goes back to a live session only at the
+  same tier, in code it wrote, while its context is small; later rounds' test, lint and
+  dedupe findings are tiered on their own.
 - **Ask, don't guess** — every spawned agent asks the parent when unsure or blocked; the
   parent answers with a binding decision, an ownership change, an escalation, or a question
   to the user.
-- **Self-contained tasks**, spawned **once, in one batch**; a report per item and per tier
+- **Self-contained tasks**, spawned **once, in one batch**; a report per item and per agent
   goes back to the loop.
 
 </details>

@@ -22,7 +22,8 @@ other units' areas to ignore, and the tier that wrote the code.
   concrete fix; what the code does not support is not a finding.
 - Check every doc statement the diff touches against the code.
 - Tests: for each new test, name the plausible bug that makes it fail; flag any test that
-  would pass with a buggy implementation.
+  would pass with a buggy implementation, a guard tested on one side only, and a test whose
+  expected value comes from the code under test.
 - Later rounds: verify each prior finding is resolved (repro where possible), then re-read
   the whole current diff. Block only on regressions this unit caused, requirement clauses
   still unmet, or defects on lines it added or changed; mark the rest `pre-existing:` in

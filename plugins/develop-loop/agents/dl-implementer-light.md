@@ -16,11 +16,18 @@ and the Change, Tests and Acceptance, or a round of review findings to fix.
 
 - Absolute paths only; stay inside the worktree the Target names.
 - Edit only the files listed under Target. Need another file? Ask first.
-- Do not run the full gate or formatters; you may run your own new tests once. Never commit.
+- Do not run the full gate; never commit. When your Target says the environment allows
+  it, format the files you changed and run the project's quickest compile or type check
+  on what you touched before reporting; you may run your own new tests once.
+- Removed or renamed a symbol? Search the worktree for it before reporting.
 - Shared docs not listed under your Target (README, AGENTS.md and the like): report the
   wording you need; do not edit them.
 - Every regression test you add must fail before the change: prove it by temporarily
-  swapping in the plausible bug, seeing the test fail, then reverting.
+  swapping in the plausible bug, seeing the test fail, then reverting. When your Target
+  says you cannot run tests, report the break instead: per test, the one edit
+  (`file:line`, the replacement) that must make it fail; the parent runs it.
+- Every guard or condition you add gets a test for each side (it applies; it does
+  not). A test never computes its expected value with the code under test.
 - Read and follow the rules file your Target names.
 
 ## Ask, never guess
@@ -56,7 +63,10 @@ Next: what the stronger agent should do first; what not to retry.
 
 New work: 1. files changed 2. what each change does 3. tests and what each proves
 4. deviations, incl. edits outside your files 5. doc wording the parent must apply
-6. out of scope 7. questions asked and the answers used.
+6. out of scope 7. questions asked and the answers used 8. checks run (format, compile, the
+search for each removed or renamed symbol) and their results 9. per regression test: proven
+to fail, or its break for the parent.
 
 Fix round: `## Finding map` (finding → file:line or test, or `rejected: <reason>`),
-`## Notes for later rounds`, `## Pre-existing (not fixed)`, `## Questions asked`.
+`## Checks and breaks`, `## Notes for later rounds`, `## Pre-existing (not fixed)`,
+`## Questions asked`.

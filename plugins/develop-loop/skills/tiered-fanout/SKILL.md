@@ -35,15 +35,22 @@ docs), pick the conservative one, state it in the task, and say so in the report
 
 | Tier | Work |
 |---|---|
-| Light | docs and comment wording, doc table rows, simple tests in an existing harness, mechanical edits (renames, config entries, boilerplate from a given template), running tests or the gate and reporting raw output, deployments the user asked for |
-| Standard | small to medium coding work: a handler, endpoint or feature following an existing pattern, rewriting one function, non-trivial tests, bounding a resource with an existing primitive; no complicated algorithms |
-| Deep | multi-module work, concurrency and lifecycle, complex algorithms, optimisations, startup/migration ordering, wire-format and security invariants, refactoring a shared primitive, fixes with two plausible directions, any large task that needs complex reasoning |
+| Light | docs and comment wording, doc table rows, simple tests in an existing harness, mechanical edits (renames, config entries, boilerplate from a given template, call-site migrations to a given API followed by a search for the old name), mechanical lint fixes, reading transcripts or logs and extracting given figures, running tests or the gate and reporting raw output, deployments the user asked for |
+| Standard | small to medium coding work: a handler, endpoint or feature following an existing pattern, rewriting one function, a new small primitive module (its call-site migration is a separate Light item), non-trivial tests including missing test cases for decided behaviour (also of concurrency code, when the harness already sets the scenario up), helpers extracted for duplicate-check pairs, bounding a resource with an existing primitive; no complicated algorithms |
+| Deep | multi-module work, concurrency and lifecycle (session leases, failover, ordering), complex algorithms, optimisations, startup/migration ordering, wire-format and security invariants, refactoring a shared primitive, fixes with two plausible directions or a measure the spec leaves open, any large task that needs complex reasoning; not the test, dedupe or lint follow-ups of its own items |
 
 - Classify per item, not per batch. An item merged from several (§3) takes the highest
   tier of its parts.
-- **Up one tier** when the item touches another module's contract, concurrency,
-  persistence or security, has no existing pattern to copy, or its design is open within
-  constraints.
+- Classify every later round's findings the same way, one by one, by the table above
+  and not by the tier that wrote the unit: a lint fix or a call-site migration is a
+  Light item, a missing test case or a helper extracted for a duplicate-check pair
+  usually sits below the unit's tier too. Only a finding that needs the unit's own
+  reasoning (its concurrency, its design decision) keeps the unit's tier. A reviewer's
+  `TIER: up` (trigger 3) raises only the findings that need that reasoning.
+- **Up one tier** when the item changes another module's contract or the behaviour of
+  concurrency, persistence or security code, has no existing pattern to copy, or its design
+  is open within constraints. A test of behaviour already decided does not count as
+  changing it.
 - **Down one tier** only when the task gives the exact wording or diff.
 - User-named tiering or model names override these defaults exactly. Use only models the
   harness lists as approved; if one is unavailable, stop and say so, never substitute.
@@ -72,10 +79,11 @@ move an item up:
    unit: a unit's verdict is not an item's count. After the second failure the next
    attempt goes one step up; never a third try at the same tier.
 3. **The reviewer upgrades the fixer.** When a review finds many problems in the
-   developer's code, the reviewer's `TIER: up` line sends the unit's next fix round to a
-   fresh fixer one step above the tier that wrote the reviewed code, or at the findings'
-   own tier if that is higher. The orchestrator applies it unless its triage rejected the
-   findings the reason rests on, and records that (`implement-review-fix-loop` §2 step 4).
+   developer's code, the reviewer's `TIER: up` line sends the next round's findings that
+   need the unit's reasoning (the later-rounds bullet above) to a fresh fixer one step
+   above the tier that wrote the reviewed code, or at the findings' own tier if that is
+   higher. The orchestrator applies it unless its triage rejected the findings the reason
+   rests on, and records that (`implement-review-fix-loop` §2 step 4).
 4. **The parent's call.** The parent may move an item up on its own judgement when it sees
    the item exceeds the current tier (§5), without waiting for a report.
 
@@ -131,22 +139,29 @@ prompt carries only the item. Model routing per harness:
   reports still apply, the ladder has no steps (a struggle handoff or a second failed fix
   goes straight to the parent, as at Deep), and the report states that tiers were not
   applied. Tool limits (`disallowedTools`) do not apply in oh-my-pi either: `dl-reviewer`
-  and `dl-runner` stay read-only by their prompts.
+  and `dl-runner` stay read-only by their prompts. Set the thinking level in one place:
+  never pass the task tool's `effort` when the agent's role or a per-call `model` already
+  carries a `:level`; `effort` overrides it, and `hi` means the model's highest level.
 - **A harness without plugin agents**: paste the agent file's body at the top of the task
   prompt and set model and effort with the harness's own option.
+- **An agent that fails to resolve** mid-session (for example a plugin updated under a
+  running harness): spawn it as in the bullet above, its body pasted and its model and
+  effort set from the agent table; never fall back to the harness's generic agent on its
+  default model. After every spawn, compare the model and effort the agent resolved to (its
+  spawn status or session record) with the agent table.
 
 **New work:**
 
 ```
 # Target
-Worktree `<absolute path>`. Spec: <decision/doc ids>. Files you may edit: <list>.
+Worktree `<absolute path>`. Spec: <decision/doc ids>. Files you may edit: <list>. Environment: <can build and run tests | cannot: report breaks>.
 Repo rules: <absolute path of the rules file>.
 Other owners (do not touch): <list>. Non-goals: <list>.
 Design: <wording given | design given | design open within constraints>.
 # Change
 1. <numbered steps; binding decisions inline; symbol/line hints; the constraints that make it correct>
 # Tests
-- <behaviour per rule; at least one regression test that fails before the change>
+- <behaviour per rule; each side of every new guard; at least one regression test that fails before the change>
 # Acceptance
 <observable result>. Code, tests and docs in the working tree, uncommitted.
 ```
@@ -154,16 +169,17 @@ Design: <wording given | design given | design open within constraints>.
 Constraints that make a change correct belong in `# Change`, verbatim ("refused attempts
 must not count toward the throttle", "Claude-Code-shaped bodies must pass byte for byte").
 
-**Fix to a live session.** A fix whose files belong to a live implementer session goes
-back to that session (it keeps context) when that session's tier is at or above the fix's
-tier and no escalation trigger (§2) applies to the item. Otherwise spawn a fresh agent at
-the fix's tier or, when a trigger applies, at the tier §2 sets. A fresh fixer gets the
-Target lines below; a reused session gets only the round. If the harness cannot message a
-running or idle subagent, spawn a fresh one the same way.
+**Fix to a live session.** A fix goes back to the live implementer session that owns its
+files (it keeps context) only when all of these hold: the session's tier equals the fix's
+tier (§2); the fix is in code that session wrote; no escalation trigger (§2) applies to the
+item; and the session's context is still small (under about 100k tokens). Otherwise spawn a
+fresh agent at the fix's own tier or, when a trigger applies, at the tier §2 sets. A fresh
+fixer gets the Target lines below; a reused session gets only the round. If the harness
+cannot message a running or idle subagent, spawn a fresh one the same way.
 
 ```
 # Target (fresh fixer only)
-Worktree `<absolute path>`. Files you may edit: <list>. Diff so far:
+Worktree `<absolute path>`. Files you may edit: <list>. Environment: <can build and run tests | cannot: report breaks>. Diff so far:
 `git -C <worktree> diff <base>`. Previous report: <attached>.
 Repo rules: <absolute path of the rules file>.
 # Round
@@ -219,23 +235,27 @@ Verify doc edits by reading the result.
 
 ## 7. Gate fallout after a fanout
 
-Implementers do not build. After every task of the batch (§6) is back, the loop's
+Implementers do not run the gate (where the environment allows, they format and
+compile-check their own files). After every task of the batch (§6) is back, the loop's
 orchestrator runs the project's full gate once per batch (never once per task), in the
 repo's documented order (format, lint, tests, other checks, duplicate/clone detection),
 itself or through `dl-runner`, whose raw output it reads and judges. Expect and handle:
 
 1. **Duplicate-code / clone detectors** flag the near-identical test setups that parallel
    agents write independently. Dispatch them as fix items (Standard tier): extract one
-   helper per pair, never weaken assertions. Like every fix, they get the loop's gate and
-   re-review before they land.
-2. **Strict-lint noise** on helpers added for tests (e.g. redundant visibility): dispatch
-   as fix items (Light tier).
+   helper per pair, never weaken assertions. The fixer may run the duplicate detector itself
+   (a static tool, not a build) and reports its output. Like every fix, they get the loop's
+   gate and re-review before they land.
+2. **Mechanical diagnostics**: strict-lint noise on helpers added for tests (e.g. redundant
+   visibility), a compile error at a named line, a format diff. When the tool prints the
+   exact fix, the parent applies it as printed (the exceptions at the top of
+   `implement-review-fix-loop`); otherwise dispatch as fix items (Light tier).
 3. **A new cap/guard breaks an old concurrency test.** When a new bound changes the
-   observable mix of outcomes (e.g. some attempts now get 503), dispatch a fix item (Deep
-   tier: a concurrency test, §2) that adapts the test to the invariants that still hold
-   (checked ≤ limit, counted == checked, outcomes sum to total). Say so in the report; do
-   not silently loosen a test that exercises a valid case without stating why the old
-   expectation no longer applies.
+   observable mix of outcomes (e.g. some attempts now get 503), dispatch a fix item (Standard
+   tier: a test of decided concurrency behaviour, §2) that adapts the test to the invariants
+   that still hold (checked ≤ limit, counted == checked, outcomes sum to total). Say so in
+   the report; do not silently loosen a test that exercises a valid case without stating why
+   the old expectation no longer applies.
 4. Re-run the full gate after the last edit; one edit invalidates it.
 
 ## 8. Report to the loop
@@ -247,7 +267,8 @@ reviewer `TIER: up`, parent's call). Then:
 - questions agents asked and the answers given, when they changed the design
 - anything unexercised (not run live, behaviour only structurally testable)
 - decisions left open to the user (e.g. "misleading message kept; want a distinct one?")
-- one line per tier on how it did (escalations, rework), so the defaults can be tuned
+- one line per agent: its tier, requests, cost and context size where the harness reports
+  them, escalations and rework, so the defaults can be tuned
 
 ## Pitfalls seen
 
