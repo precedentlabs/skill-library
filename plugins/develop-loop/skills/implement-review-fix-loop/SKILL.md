@@ -5,10 +5,15 @@ description: Use for all implementation work - any request to implement, change 
 
 # Implement → review → fix, until clean
 
-The orchestrator decides, gates and commits. Subagents implement, review and fix.
-Nothing is "done" on a subagent's word: the loop ends only on a reviewer verdict
-**plus** a green gate owned by the orchestrator (run by it, or by `dl-runner` whose raw
-output it reads and judges).
+The orchestrator decides, gates and commits. Subagents implement, review and fix. The
+orchestrator edits a unit's files only in these cases, never otherwise to apply a
+finding, however small: the cosmetic tail and the takeover round (§2); an item
+`tiered-fanout` §2 hands to the parent (a trigger at Deep, or any trigger in an
+untiered session, `tiered-fanout` §4); doc wording a subagent reported for a shared doc
+(`tiered-fanout` §3 and §6). Nothing is "done" on a subagent's word: the
+loop ends only on a reviewer verdict (or the cosmetic tail, §2) **plus** a green gate
+owned by the orchestrator (run by it, or by `dl-runner` whose raw output it reads and
+judges).
 
 Place in the hierarchy: `triage-findings` selects a batch → this loop → `tiered-fanout`
 does the implement and fix work, each item on the model tier its difficulty needs. The
@@ -114,7 +119,9 @@ accepted.
 4. **Triage every finding yourself**: fix / reject with a reason / the spec is wrong →
    write a decision and amend / accept as is. You make the design call; do not hand the
    fixer an open question.
-5. **Fix.** Through `tiered-fanout`:
+5. **Fix.** Dispatch every finding triaged as fix to fixer subagents through
+   `tiered-fanout`, in one batch, even a one-line or doc-only fix; the orchestrator
+   edits in this step only in the cases listed at the top of this skill:
    - each finding with its binding decision is a work item, tiered by difficulty
      (`tiered-fanout` §2);
    - who gets it (the live implementer session or a fresh fixer, at which tier, including
@@ -136,9 +143,11 @@ accepted.
    the re-review block.
 8. Repeat 4–7 until the verdict meets the bar.
 
-**Cosmetic tail.** When the last open item is a comment, a doc line or a format fix,
-the orchestrator fixes it inline and confirms with the gate instead of another review
-round. Record that it was not re-reviewed. Anything touching behaviour gets a review.
+**Cosmetic tail.** From round 2 on, when at most two items are still open and each is
+a comment, a doc line that changes no stated fact, or a format fix, the orchestrator
+fixes them inline and confirms with the gate instead of another review round. Record
+that they were not re-reviewed. Round 1 findings, more than two items, or anything
+touching behaviour go through step 5.
 
 **Round cap.** Three automatic fix rounds per unit; escalation inside them is
 `tiered-fanout` §2. **The cap wins over the ladder**: an item that started at Light can
@@ -240,6 +249,9 @@ leftovers, never backlog entries.
 
 ## Failure modes seen
 
+- Orchestrator applies review findings itself because they look small or a spawn
+  seems slower → violates §2 step 5; dispatch fixers. Inline edits are limited to the
+  cases listed at the top of this skill.
 - Agent stops after a clean-looking round to ask permission → violates the loop; keep going.
 - Doc claims drift from code between rounds (a doc says "returns 404 on a missing item"
   after the code started returning 410; a documented limit differs from the constant):
@@ -247,7 +259,6 @@ leftovers, never backlog entries.
 - Prompt-quoted constants/examples propagate wrongly into every slice: verify wire facts
   with a scout before writing the contract.
 - Reviewer by reading cannot prove formatting/line-length: let the formatter decide.
-- A takeover or inline fix at the end is not re-reviewed unless you do it; say so.
 - Reviewers re-raising rejected findings burn rounds: require the rejection reason in the
   fix summary (`## Finding map`: finding → `file:line`/test, or `rejected: reason`).
 

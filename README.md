@@ -156,10 +156,12 @@ reviewer verdict **plus** a green gate the orchestrator judged itself.
   changed lines block; everything else goes to a backlog instead of looping forever.
 - **Per-round protocol** — implement → gate + spot-read → `git add -N` (so new files
   show in the diff) → diff-scoped review (`TIER: keep | up`, `VERDICT: PASS | FIX`) →
-  triage → fix → gate → re-review; implement and fix run through `tiered-fanout`.
+  triage → fix → gate → re-review; implement and fix run through `tiered-fanout`; fixes go
+  to subagents, and the orchestrator edits only in the few cases the skill lists, such as
+  the takeover round below.
 - **Reviewer upgrades the fixer** — reviewers always run on `opus-5-5:high`; a review that
-  finds many problems in the developer's code sends the next fix round one model above the
-  author, on a fresh agent.
+  finds many problems in the developer's code sends the next fix round to a fresh agent
+  one tier above the author, or at the findings' own tier if that is higher.
 - **Round cap** — three automatic fix rounds with tier escalation, then a takeover round:
   the orchestrator fixes the unit itself and has it reviewed again.
 - **Worktrees** per unit when units run in parallel; ready-to-use

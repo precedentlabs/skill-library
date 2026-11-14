@@ -12,9 +12,11 @@ Place in the hierarchy: `triage-findings` selects a batch → `implement-review-
 implements, reviews and fixes it → this skill does the implement and fix work. It calls
 nothing above it.
 
-- **Inside the loop** (all implementation work): subagents never commit; the loop's
-  per-round triage supplies the decisions (§1), the loop runs the gate (§7 lists the
-  fallout to expect), and §8 feeds the loop's report.
+- **Inside the loop** (all implementation work): subagents never commit; the parent
+  dispatches fixes and applies none itself outside the cases listed at the top of
+  `implement-review-fix-loop`; the loop's per-round triage supplies the decisions (§1),
+  the loop runs the gate (§7 lists the fallout to expect), and §8 feeds the loop's
+  report.
 - **Standalone: runs only.** Without the loop, use it only for runner tasks that change no
   files (tests, the gate, deployments). Any code or doc change, even a one-line fix, goes
   through `implement-review-fix-loop`.
