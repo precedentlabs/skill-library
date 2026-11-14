@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lint the skill library: bodies, versions, section references and model names.
+"""Lint the skill library: bodies, versions, section references, model names and BOMs.
 
 Usage: python scripts/lint.py [root]
 
@@ -20,9 +20,10 @@ def line_of(text, pos):
 
 
 def read(root, path, check, out):
-    """Return the UTF-8 text of `path`, or None after recording a problem."""
+    """Return the UTF-8 text of `path` (a BOM is dropped; check_bom reports it), or None
+    after recording a problem."""
     try:
-        return path.read_text(encoding="utf-8")
+        return path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeDecodeError) as exc:
         out.append((rel(root, path), 1, check, "cannot read file: %s" % exc))
         return None
@@ -129,7 +130,11 @@ def check_versions(root):
         name = entry.get("name")
         at = 1
         if isinstance(name, str):
-            found = text.find(json.dumps(name), start)
+            found = -1
+            for needle in (json.dumps(name, ensure_ascii=False), json.dumps(name)):
+                found = text.find(needle, start)
+                if found >= 0:
+                    break
             at = line_of(text, found) if found >= 0 else 1
         source = entry.get("source")
         manifest = None
@@ -149,7 +154,10 @@ def check_versions(root):
         if not isinstance(info, dict):
             out.append((rel(root, manifest), 1, "versions", "plugin.json is not an object"))
             continue
-        for key in ("name", "version"):
+        keys = ["name", "version"]
+        if isinstance(entry.get("description"), str) and isinstance(info.get("description"), str):
+            keys.append("description")
+        for key in keys:
             if info.get(key) != entry[key]:
                 out.append(
                     (
@@ -191,7 +199,7 @@ def skill_sections(root):
     skills = {}
     for skill_md in sorted((root / "plugins").glob("*/skills/*/SKILL.md")):
         try:
-            text = skill_md.read_text(encoding="utf-8")
+            text = skill_md.read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError):
             text = ""  # reported by check_refs when it reads the file
         skills.setdefault(skill_md.parent.name, set()).update(
@@ -329,7 +337,8 @@ def check_models(root):
                     (rel(root, a["path"]), 1, "models", "no SKILL.md table row names `%s`" % a["name"])
                 )
 
-    shorts = sorted({a["short"] for a in all_agents})
+    # an alias (`sonnet`, `inherit`) is an ordinary word in prose: search versioned ids only
+    shorts = sorted({a["short"] for a in all_agents if any(c.isdigit() for c in a["short"])})
     names = [a["name"] for a in all_agents]
     for path in sorted((root / "plugins").rglob("*.md")):
         text = read(root, path, "models", out)
@@ -363,7 +372,7 @@ def check_models(root):
 def check_routing(text, agents):
     out = []
     comment = r"(?:[ \t]+#.*)?[ \t]*$"
-    roles = re.search(r"^[ \t]*modelRoles:[ \t]*$", text, re.M)
+    roles = re.search(r"^[ \t]*modelRoles:%s" % comment, text, re.M)
     for a in agents:
         route = re.search(
             r'^[ \t]*%s:[ \t]*"@([\w-]+)"%s' % (re.escape(a["name"]), comment), text, re.M
@@ -394,6 +403,26 @@ def check_routing(text, agents):
     return out
 
 
+# --- 5. byte order mark --------------------------------------------------------------
+
+
+def check_bom(root):
+    """A BOM hides the frontmatter from tools that read the first line: report it once."""
+    files = sorted((root / "plugins").rglob("*.md"))
+    files += sorted((root / "plugins").glob("*/.claude-plugin/plugin.json"))
+    files += [root / ".claude-plugin" / "marketplace.json", root / "README.md"]
+    out = []
+    for path in files:
+        try:
+            with path.open("rb") as f:
+                head = f.read(3)
+        except OSError:
+            continue  # missing or unreadable: the other checks report it
+        if head == b"\xef\xbb\xbf":
+            out.append((rel(root, path), 1, "bom", "starts with a UTF-8 BOM; save without it"))
+    return out
+
+
 # --- main ----------------------------------------------------------------------------
 
 
@@ -403,7 +432,7 @@ def main(argv):
     root = Path(argv[1]) if len(argv) > 1 else Path(__file__).resolve().parent.parent
     root = root.resolve()
     problems = []
-    for check in (check_bodies, check_versions, check_refs, check_models):
+    for check in (check_bodies, check_versions, check_refs, check_models, check_bom):
         problems += check(root)
     problems = sorted(set(problems))
     for path, line, check, message in problems:

@@ -111,7 +111,7 @@ struggle handoff template and the report formats.
 | Standard item | `dl-implementer-standard` | `sonnet-5-5:high` |
 | Deep item | `dl-implementer-deep` | `opus-5-5:medium` |
 | Tests, gate, deployment | `dl-runner` | `haiku-5-5:high` |
-| Review (the loop's §3) | `dl-reviewer` | `opus-5-5:high` |
+| Review (`implement-review-fix-loop` §3) | `dl-reviewer` | `opus-5-5:high` |
 
 Spawn the agent for the item's tier; an escalation (§2) spawns the next one up. The task
 prompt carries only the item. Model routing per harness:
@@ -193,7 +193,7 @@ what it can do reliably) is **struggling** and sends a struggle handoff instead 
 The parent answers promptly (a waiting agent is spend with no progress) with one of:
 
 - a **binding decision**, recorded with the task so later rounds and re-spawns see it;
-- **re-assignment** on a struggle handoff: spawn the next model up the ladder (§2) with
+- **re-assignment** on a struggle handoff: spawn the agent one tier up the ladder (§2) with
   the original task, the handoff and "continue from the working tree; restart only parts
   the handoff marks broken". The struggling agent stays stopped. If the handoff shows the
   struggle was really a missing decision, decide it and keep the same agent instead.
@@ -228,12 +228,14 @@ itself or through `dl-runner`, whose raw output it reads and judges. Expect and 
    agents write independently. Dispatch them as fix items (Standard tier): extract one
    helper per pair, never weaken assertions. Like every fix, they get the loop's gate and
    re-review before they land.
-2. **Strict-lint noise** on helpers added for tests (e.g. redundant visibility).
+2. **Strict-lint noise** on helpers added for tests (e.g. redundant visibility): dispatch
+   as fix items (Light tier).
 3. **A new cap/guard breaks an old concurrency test.** When a new bound changes the
-   observable mix of outcomes (e.g. some attempts now get 503), adapt the test to the
-   invariants that still hold (checked ≤ limit, counted == checked, outcomes sum to
-   total). Say so in the report; do not silently loosen a test that exercises a valid case
-   without stating why the old expectation no longer applies.
+   observable mix of outcomes (e.g. some attempts now get 503), dispatch a fix item (Deep
+   tier: a concurrency test, §2) that adapts the test to the invariants that still hold
+   (checked ≤ limit, counted == checked, outcomes sum to total). Say so in the report; do
+   not silently loosen a test that exercises a valid case without stating why the old
+   expectation no longer applies.
 4. Re-run the full gate after the last edit; one edit invalidates it.
 
 ## 8. Report to the loop

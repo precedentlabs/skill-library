@@ -144,7 +144,8 @@ For **all implementation work**: features, fixes, doc and test changes, batches 
 `triage-findings`, accepted `optimize` changes; a small change runs the loop at its
 smallest, never skips review. The orchestrator decides, gates and commits; subagents
 implement, review and fix. Nothing is "done" on a subagent's word: the loop ends only on a
-reviewer verdict **plus** a green gate the orchestrator judged itself.
+reviewer verdict (or a short cosmetic tail) **plus** a green gate the orchestrator judged
+itself.
 
 - **Contract first** — open decisions are written down before any code; work is split into
   units with disjoint file sets, ordered by risk.
@@ -280,7 +281,7 @@ that the procedure now guards against.
 ├── .claude-plugin/
 │   └── marketplace.json            # marketplace catalogue (name: precedentlabs-skills)
 ├── scripts/
-│   └── lint.py                     # consistency lint: agent bodies, versions, § references, model ids
+│   └── lint.py                     # consistency lint: agent bodies, versions and descriptions, § references, model ids, BOMs
 └── plugins/
     ├── develop-loop/
     │   ├── .claude-plugin/plugin.json
@@ -311,9 +312,10 @@ that the procedure now guards against.
    not models: model ids live only in the agent frontmatter, the agent table in
    `tiered-fanout` §4 and this README.
 6. Run `python scripts/lint.py` before committing. It checks that the implementer bodies
-   are identical, plugin versions match in both files, every `§N` reference resolves,
-   model ids appear only where step 5 allows, and this README's agent table and routing
-   snippet match the agent frontmatter.
+   are identical, plugin versions and descriptions match in both files, no Markdown file or
+   manifest starts with a UTF-8 BOM, every `§N` reference resolves, model ids appear only
+   where step 5 allows, and this README's agent table and routing snippet match the agent
+   frontmatter.
 
 ## 📄 License
 
