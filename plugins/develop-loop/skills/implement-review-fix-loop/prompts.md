@@ -1,12 +1,12 @@
 # Prompt templates
 
 Replace `<…>`. Keep the severity bar and stop condition in every reviewer prompt. The
-role rules (read-only, evidence rule, lenses, ask the orchestrator, output format, `TIER:`
-and `VERDICT:` lines) live in the `dl-reviewer` agent; implementer, fix and runner tasks
-are in `tiered-fanout` §4. The orchestrator runs `git -C <path> add -N .` before sending
-the round-1 or re-review prompt, so the diff shows new files. Without plugin agents,
-paste the agent file's body above each prompt and set the model as `tiered-fanout` §4
-says.
+role rules (read-only except probes, evidence rule, lenses, ask the orchestrator, output
+format, `TIER:` and `VERDICT:` lines) live in the `dl-reviewer` agent; implementer, fix
+and runner tasks are in `tiered-fanout` §4. The orchestrator runs
+`git -C <path> add -N .` before sending the round-1 or re-review prompt, so the diff
+shows new files. Without plugin agents, paste the agent file's body above each prompt and
+set the model as `tiered-fanout` §4 says.
 
 ## Reviewer, round 1 (`dl-reviewer`)
 
@@ -18,6 +18,8 @@ Bar: critical/major/minor all count; nits are optional.
 Severity scale: <the table from SKILL.md §1>
 Lenses: <all | the subset this reviewer takes>.
 Check especially: <risk list for this unit>
+Threat model: <who is untrusted and what they control | none>
+Probes: <command that runs one test file or script | none: cannot run here>
 Tier of the code's author: <Light | Standard | Deep>.
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: implement-review-fix-loop
-description: Use for all implementation work - any request to implement, change or fix code, tests or docs, a batch selected by triage-findings, or an accepted optimize change - and loop review → fix until no critical, major or minor finding is left ("repeat until clean", "until nothing blocks"). Covers unit partitioning, severity definitions, the per-round protocol (implement and fix steps run through tiered-fanout), convergence and stop rules, scoping reviews to the diff, a backlog for out-of-scope findings, worktrees, and the final gate. Not for a one-shot review with no changes, or for deciding which findings to fix (triage-findings).
+description: Use for all implementation work - any request to implement, change or fix code, tests or docs, a batch selected by triage-findings, or an accepted optimize change - and loop review → fix until no critical, major or minor finding is left ("repeat until clean", "until nothing blocks"). Covers unit partitioning, severity definitions, the per-round protocol (implement and fix steps run through tiered-fanout), convergence and stop rules, scoping reviews to the diff and its blast radius, a backlog for out-of-scope findings, worktrees, and the final gate. Not for a one-shot review with no changes, or for deciding which findings to fix (triage-findings).
 ---
 
 # Implement → review → fix, until clean
@@ -39,7 +39,7 @@ files (tests, the gate, deployments) use `tiered-fanout` without it.
 - One worktree per unit when units run in parallel (§6).
 - Decide whether implementers can build and run tests in this environment, and say so in
   every task (the `tiered-fanout` §4 template). Where they cannot, the orchestrator proves
-  each regression test fails (§2 step 6).
+  each regression test fails (§2 step 6); where they can, reviewers run probes (§3).
 - **Entry from triage.** An approved batch from `triage-findings`: each group in the batch
   (rows sharing an owning file or a root cause) becomes one unit and stays whole; a sweep
   group becomes one sweep unit. The table's difficulty hints go to `tiered-fanout` as tier
@@ -101,10 +101,12 @@ findings.
 From round 2 on, a finding is critical/major/minor **only if** it is (a) a regression
 the unit's own changes caused (including a fix breaking an earlier accepted fix),
 (b) a requirement clause still unmet, or (c) a defect on a line the unit added or
-changed. Anything else is `pre-existing:` and goes to the backlog (§4). Reviewers raise
-no new nits from round 2 on. Reviewers must not re-raise a finding the fixer or the
-orchestrator's triage rejected *with a reason* unless they show why the reason is wrong,
-and must not reopen a fix an earlier round accepted.
+changed, or in its blast radius (§3). Anything else is `pre-existing:` and goes to the
+backlog (§4). Reviewers raise no new nits from round 2 on. Reviewers must not re-raise a
+finding the fixer or the orchestrator's triage rejected *with a reason* unless they show
+why the reason is wrong, and must not reopen a fix an earlier round accepted. An
+acceptance, a rejection or a backlog entry covers the code path it was made for: the same
+weakness on a path the unit adds is a new finding.
 
 ## 2. The per-round protocol
 
@@ -119,20 +121,25 @@ and must not reopen a fix an earlier round accepted.
    this skill allows; else send the exact failure back to the implementer. Never review red
    code. Then run `git -C <worktree> add -N .` (intent-to-add, stages no content) so files
    the implementer created appear in `git diff`.
-3. **Review.** Fresh `dl-reviewer` agent(s) scoped to the diff (§3). Required output:
-   findings with severity, `file:line`, evidence, fix; a `## Out of scope` section; a
-   `## Not checked` section (assigned lenses or areas the reviewer did not cover and why;
-   each suspicion only a build or test run could prove, with its command; each untracked
-   file the diff does not show); the line `TIER: keep` or `TIER: up — <reason>` for the
-   next fix round (§3); last line `VERDICT: PASS` (nothing at or above the bar) or
-   `VERDICT: FIX`.
+3. **Review.** Fresh `dl-reviewer` agent(s) scoped to the diff and its blast radius (§3).
+   Required output: findings with severity, `file:line`, evidence, fix; a
+   `## Out of scope` section; a `## Not checked` section (assigned lenses or areas the
+   reviewer did not cover and why; each suspicion neither reading nor a probe settled,
+   with the command that proves it and the platform it needs; each untracked file the
+   diff does not show); the line `TIER: keep` or `TIER: up — <reason>` for the next fix
+   round (§3); last line `VERDICT: PASS` (nothing at or above the bar) or `VERDICT: FIX`.
 4. **Triage every finding yourself.** First settle `## Not checked`, on every review, PASS
    included: run each command it names (yourself or via `dl-runner`), a failure is a
    finding; send a lens or area left uncovered back to a reviewer; `git add -N` an
-   untracked file that belongs to the unit and have it reviewed, drop one that does not;
-   what stays unverified goes into the final report (§7 step 4). Then for each finding:
-   fix / reject with a reason / the spec is wrong → write a decision and amend / accept as
-   is. You make the design call; do not hand the fixer an open question.
+   untracked file that belongs to the unit and have it reviewed, drop one that does not,
+   delete a `dl-probe` file a reviewer left behind. An item closes only by a run or by a
+   trace that proves it: "probably", "inferred" and "fails closed" close nothing. What
+   cannot be run here (another OS) or stays unverified goes into the final report as
+   residual risk (§7 step 4), with the platform and what would prove it. Then for each
+   finding: fix / reject with a reason / the spec is wrong → write a decision and amend /
+   accept as is. You make the design call; do not hand the fixer an open question. A fix
+   the reviewer prescribes is a proposal: before binding it, check what it changes beyond
+   the finding (other run modes, platforms, shared pools and limits).
 5. **Fix.** Dispatch every finding triaged as fix to fixer subagents through
    `tiered-fanout`, in one batch, even a one-line or doc-only fix; the orchestrator
    edits in this step only in the cases listed at the top of this skill:
@@ -155,9 +162,10 @@ and must not reopen a fix an earlier round accepted.
    `git -C <worktree> add -N .` again so files the fix created appear in the diff.
 7. **Re-review.** Same reviewer session (or a fresh one for independent eyes on later
    rounds): verify each prior finding is resolved (repro where possible) **and**
-   re-read the whole current diff for anything the fix introduced. If the harness cannot
-   message the reviewer, spawn a fresh one with the round-1 prompt, its previous report and
-   the re-review block.
+   re-read the whole current diff for anything the fix introduced; each fix is reviewed as
+   new code, a fix the reviewer prescribed included. If the harness cannot message the
+   reviewer, spawn a fresh one with the round-1 prompt, its previous report and the
+   re-review block.
 8. Repeat 4–7 until the verdict meets the bar and the last review's `## Not checked` is
    settled (step 4); a failed check reopens the loop.
 
@@ -181,20 +189,32 @@ remaining findings; the loop stops there.
 ## 3. Reviewer setup
 
 - Spawn the `dl-reviewer` agent (`develop-loop:dl-reviewer` in Claude Code; model routing
-  per harness in `tiered-fanout` §4): it carries the read-only rules, the evidence rule,
-  the review lenses, the ask rule and the output format (findings, `## Out of scope`,
-  `## Not checked`, `TIER:`, `VERDICT:`). Without plugin agents, paste its body at the top
-  of the reviewer prompt and set the reviewer's model and effort from the agent table in
-  `tiered-fanout` §4. Read-only: no edits, no commits, no build/test/gate runs
-  (orchestrator owns those); scratch edits only if reverted.
-- **Scope to the diff**, stated as a command: `git -C <worktree> diff <base>` (the working
-  tree against the unit's base, so uncommitted changes are included; new files show
-  because of the `add -N` in §2 steps 2 and 6). Findings only on lines the diff adds,
-  changes or removes, a defect the change causes elsewhere included (anchored on the line
-  that causes it); the reviewer still reads beyond the diff for callers, existing
-  implementations and placement.
+  per harness in `tiered-fanout` §4): it carries the read-only and probe rules, the
+  evidence rule, the review lenses, the ask rule and the output format (findings,
+  `## Out of scope`, `## Not checked`, `TIER:`, `VERDICT:`). Without plugin agents, paste
+  its body at the top of the reviewer prompt and set the reviewer's model and effort from
+  the agent table in `tiered-fanout` §4. Read-only except probes: no edits to tracked
+  files, no commits, no build/suite/gate runs beyond the probe command (orchestrator owns
+  those).
+- **Probes.** Where agents can build and run tests here (§0), give the reviewer a
+  `Probes:` command that runs one test file or script (through the build wrapper of §6
+  when units run in parallel). A check that parses its input differently from the code it
+  guards, a hang, an escape: these show only when something is run.
+- **Scope to the diff and its blast radius**, the diff stated as a command:
+  `git -C <worktree> diff <base>` (the working tree against the unit's base, so
+  uncommitted changes are included; new files show because of the `add -N` in §2 steps 2
+  and 6). Findings on lines the diff adds, changes or removes, and in its blast radius
+  (callers, callees, consumers of what the changed code produces, the entry points and
+  run modes that reach it, old code it newly exposes to untrusted input) where the change
+  causes, exposes or relies on the defect; such a finding cites both lines, and a fix
+  outside the unit's files follows the ownership rule of `tiered-fanout` §5. The reviewer
+  also reads beyond the diff for existing implementations and placement.
 - Give a `Check especially:` list of the risks this unit can break: worst-legal-input
-  bounds, shutdown/lifecycle, error shapes, authz, caching, test determinism, etc.
+  bounds, shutdown/lifecycle, error shapes, authz, caching, test determinism, etc. It is a
+  floor, never the scope. For a unit on a trust boundary add a `Threat model:` line (who
+  is untrusted and what they control: files, paths, input, timing) and word the risks as
+  attacks ("what does the host do with a file the contained code controls?"), not as
+  functions ("can the hook write there?").
 - Run **two reviewers split by lens** on units that change behaviour or mix kinds of work
   (implementation vs tests, or code vs docs/CSS); a Trivial change (§0) always takes one.
   Each of the two prompts names its lenses from the `dl-reviewer` list. A single reviewer
@@ -214,10 +234,10 @@ remaining findings; the loop stops there.
 
 ## 4. Backlog for everything out of scope
 
-Out-of-diff findings never block and never get fixed in this loop. They go to
-`backlog.md` at the root of the main checkout (never inside a unit's worktree, which is
-removed at the end), **excluded from git** (`.git/info/exclude`, not
-`.gitignore`, so the exclusion itself is not committed). Each entry: where, what, which
+Findings outside the diff and its blast radius (§3) never block and never get fixed in
+this loop. They go to `backlog.md` at the root of the main checkout (never inside a
+unit's worktree, which is removed at the end), **excluded from git** (`.git/info/exclude`,
+not `.gitignore`, so the exclusion itself is not committed). Each entry: where, what, which
 round found it. The backlog belongs to `triage-findings`, which selects the next batch from
 it after the loop; the post-loop **minor sweep** (§7) covers only the units' own
 leftovers, never backlog entries.
@@ -253,11 +273,12 @@ leftovers, never backlog entries.
    (it finds near-copies that parallel agents wrote independently). Its fixes (extract one
    helper per pair, never weaken assertions) run as a fix round: §2 steps 4–8.
 2. **Live smoke**: run the real system on a throwaway instance and exercise the changed
-   paths in a browser/CLI. Reviews that read code miss rendering and integration bugs;
-   smoke tests have caught defects after several clean review rounds.
+   paths in a browser/CLI, through every entry point and run mode that reaches them.
+   Reviews that read code miss rendering and integration bugs; smoke tests have caught
+   defects after several clean review rounds.
 3. **Minor sweep** for each unit's own leftovers. Run it only when it has input: minors
-   from the units' last PASS reviews left on changed lines because the bar excluded them,
-   or nits you decided to apply (backlog entries go to `triage-findings`, never here).
+   from the units' last PASS reviews left open because the bar excluded them, or nits you
+   decided to apply (backlog entries go to `triage-findings`, never here).
    Under the default bar a PASS leaves no minors; with no nits worth applying, skip the
    sweep and say so in the final report.
    Scope it (inefficiency, stale docs, design-doc divergence, duplication), skip
@@ -268,7 +289,8 @@ leftovers, never backlog entries.
 4. Final report: headline (what landed, commit range, gate result, smoke result) → how it
    ran (rounds per unit, tiers used and escalations) → one bullet per user-visible
    behaviour with decision ids → **Needs your attention** (rejected items, divergences,
-   backlog summary, anything not exercised).
+   backlog summary, residual risk: unverified `## Not checked` items and platforms not
+   run, anything not exercised).
 
 ## Failure modes seen
 
@@ -284,6 +306,19 @@ leftovers, never backlog entries.
 - Reviewer by reading cannot prove formatting/line-length: let the formatter decide.
 - Reviewers re-raising rejected findings burn rounds: require the rejection reason in the
   fix summary (`## Finding map`: finding → `file:line`/test, or `rejected: reason`).
+- A check parsed a path list one way and the tool it guarded another (a quoted part, a
+  malformed selector); reading both passed it, the first throwaway probe broke it:
+  reviewers probe (§3) and compare every check with its use.
+- A fix the reviewer prescribed, applied as written, caused the next bug (work moved onto
+  a capped thread pool; an error path that hangs one run mode): the fix is reviewed as new
+  code (§2 steps 4 and 7).
+- A `## Not checked` item closed as "probably fails closed" left the feature dead on a
+  platform nobody ran: only a run or a proving trace closes it (§2 step 4).
+- "Is the directory writable for the hook?" got a functional answer; the bug was what the
+  host did with a file the hook controlled: give a `Threat model:` (§3).
+- An unchanged line became exploitable through new code, and a fix closed one comparison
+  of a class but not its siblings: review the blast radius (§3); the finding lists every
+  instance (`dl-reviewer`).
 
 See `prompts.md` for copy-ready reviewer, re-review and minor-sweep prompts; implementer,
 fix and runner prompts live in `tiered-fanout` §4.

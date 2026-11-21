@@ -101,7 +101,7 @@ task:
 ```
 
 Tool limits (`disallowedTools`) are Claude Code only: in oh-my-pi, `dl-reviewer` and
-`dl-runner` stay read-only by their prompts.
+`dl-runner` keep to their limits by their prompts.
 
 Set each spawn's thinking level in one place: oh-my-pi's task `effort` overrides a
 `:level` on the role or model (`hi` is the model's highest level), so the skills
@@ -160,15 +160,21 @@ itself.
 - **Review lenses** — reviews work through twelve named lenses (intent, correctness,
   concurrency, failure behaviour, blast radius, security, tests, performance, duplication,
   simplicity, placement, docs and operability), split between two reviewers when the loop
-  runs two; a finding needs a trigger or design evidence, and what only a build or test run
-  could prove is listed for the orchestrator to run.
+  runs two; a finding needs a trigger or design evidence. Reviewers may run throwaway
+  probes; what neither reading nor a probe settles is listed for the orchestrator to run,
+  or reported as residual risk.
+- **Diff plus blast radius** — findings count on changed lines and in the code the change
+  affects (callers, callees, consumers, entry points, old code newly exposed) when the
+  change causes, exposes or relies on the defect; units on a trust boundary get a threat
+  model.
 - **Convergence rule** — from round 2 on, only regressions, unmet requirements or defects on
-  changed lines block; everything else goes to a backlog instead of looping forever.
+  changed lines or in their blast radius block; everything else goes to a backlog instead
+  of looping forever.
 - **Per-round protocol** — implement → gate + spot-read → `git add -N` (so new files
-  show in the diff) → diff-scoped review (`TIER: keep | up`, `VERDICT: PASS | FIX`) →
-  triage → fix → gate → re-review; implement and fix run through `tiered-fanout`; fixes go
-  to subagents, and the orchestrator edits only in the few cases the skill lists, such as
-  the takeover round below.
+  show in the diff) → review of the diff and its blast radius (`TIER: keep | up`,
+  `VERDICT: PASS | FIX`) → triage → fix → gate → re-review; implement and fix run through
+  `tiered-fanout`; fixes go to subagents, and the orchestrator edits only in the few cases
+  the skill lists, such as the takeover round below.
 - **Reviewer upgrades the fixer** — reviewers always run on `opus-5-5:high`; a review that
   finds many problems in the developer's code sends the next round's findings that need
   the author's reasoning to a fresh agent one tier above the author, or at the findings'
@@ -195,11 +201,11 @@ that fails at the very end. On its own it only runs tests, the gate or deploymen
 | Light | `dl-implementer-light`, `dl-runner` | `haiku-5-5:high` | docs, simple tests, mechanical edits and call-site migrations, mechanical lint fixes, running tests, deployments |
 | Standard | `dl-implementer-standard` | `sonnet-5-5:high` | small to medium coding work, new small primitives, missing test cases, dedupe helpers; no complicated algorithms |
 | Deep | `dl-implementer-deep` | `opus-5-5:medium` | multi-module work, concurrency, complex algorithms, optimisations, large reasoning-heavy tasks |
-| Review | `dl-reviewer` | `opus-5-5:high` | every review in the loop, read-only |
+| Review | `dl-reviewer` | `opus-5-5:high` | every review in the loop; read-only apart from throwaway probes |
 
 Each implementer's system prompt carries the rules every task needs (owned files only, no
 gate, no commit, ask the parent, struggle handoff, report format); `dl-reviewer` and
-`dl-runner` carry their read-only rules, the ask rule and their report format. Task
+`dl-runner` carry their limits, the ask rule and their report format. Task
 prompts carry only the work.
 
 - **Escalation ladder** — `haiku-5-5:high` → `sonnet-5-5:high` → `opus-5-5:medium`, one step

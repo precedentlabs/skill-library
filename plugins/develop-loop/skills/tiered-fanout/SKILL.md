@@ -139,7 +139,7 @@ prompt carries only the item. Model routing per harness:
   reports still apply, the ladder has no steps (a struggle handoff or a second failed fix
   goes straight to the parent, as at Deep), and the report states that tiers were not
   applied. Tool limits (`disallowedTools`) do not apply in oh-my-pi either: `dl-reviewer`
-  and `dl-runner` stay read-only by their prompts. Set the thinking level in one place:
+  and `dl-runner` keep to their limits by their prompts. Set the thinking level in one place:
   never pass the task tool's `effort` when the agent's role or a per-call `model` already
   carries a `:level`; `effort` overrides it, and `hi` means the model's highest level.
 - **A harness without plugin agents**: paste the agent file's body at the top of the task

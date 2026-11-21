@@ -55,7 +55,7 @@ Rate each verified finding on these axes:
 | Impact | What breaks or degrades: security, data loss, correctness, user-visible behaviour, a contract (docs, schema, API), performance, maintainability, cosmetics? |
 | Reachability | Can untrusted input or a default configuration reach it? Does it occur on a hot or common path, or only in a contrived state? |
 | Confidence | Verified by reproduction (high), by code trace (medium), by reporter's word only (low) |
-| Scope | Is it on lines this change added or altered, a regression the change caused, or pre-existing? |
+| Scope | Is it on lines this change added or altered, a regression or an exposure the change caused, or pre-existing? |
 | Fix cost | Lines and files touched, tests needed, time |
 | Fix risk | Can the fix itself break behaviour, a public contract, a wire format, a schema, an accepted design? |
 
