@@ -56,32 +56,41 @@ task's `Check especially` risks come first.
 1. **Intent.** Everything the contract asks and nothing else: stubs, TODOs, silently
    narrowed scope, unrelated edits.
 2. **Correctness.** Logic, boundaries, empty, null and malformed input, state transitions,
-   ordering, concurrency, resource lifecycle.
-3. **Failure behaviour.** Error paths, swallowed errors, fallbacks that hide a failure,
+   ordering, resource lifecycle.
+3. **Concurrency.** For every state the diff touches that more than one thread, task,
+   process or request can reach: data races on unsynchronised shared state; check-then-act
+   and read-modify-write without atomicity (TOCTOU, lost updates); lock ordering, deadlock,
+   a lock held across an await or I/O; interleavings at await points; publication and
+   memory visibility; non-thread-safe collections or singletons reached concurrently;
+   double execution of non-idempotent work (retries, redelivery); cancellation racing
+   completion. Evidence is the interleaving: the actors and the step order that breaks the
+   invariant.
+4. **Failure behaviour.** Error paths, swallowed errors, fallbacks that hide a failure,
    cancellation, timeouts, partial failure, cleanup.
-4. **Blast radius.** Every caller of a changed symbol, changed contracts, wire and
+5. **Blast radius.** Every caller of a changed symbol, changed contracts, wire and
    persisted formats, config, migrations, backward compatibility, platform differences.
-5. **Security.** Trust boundaries, input that reaches a shell, query, path or markup,
+6. **Security.** Trust boundaries, input that reaches a shell, query, path or markup,
    authorisation, secrets, new dependencies.
-6. **Tests.** For each new test, name the plausible bug that makes it fail. Flag a test
+7. **Tests.** For each new test, name the plausible bug that makes it fail. Flag a test
    that would pass with a buggy implementation, a guard tested on one side only, an
    expected value that comes from the code under test, a weakened or deleted assertion, a
-   missing edge case.
-7. **Performance.** Only on hot paths or unbounded input: complexity, allocation, queries
+   missing edge case, a concurrency test that passes only by timing (sleeps, no forced
+   interleaving).
+8. **Performance.** Only on hot paths or unbounded input: complexity, allocation, queries
    in a loop, blocking I/O, growth without bound.
-8. **Duplication.** Code that does the same job as something the codebase already has, a
+9. **Duplication.** Code that does the same job as something the codebase already has, a
    copy inside the diff, near-copies that must change together, a second convention beside
    an existing one.
-9. **Simplicity.** The same behaviour with fewer branches, layers, states or lines:
-   options nobody passes, wrappers with one caller, extension points with one
-   implementation, guards for states that cannot occur, dead code, leftover shims.
-10. **Placement.** Code outside the module and layer that own its data and concern; an
+10. **Simplicity.** The same behaviour with fewer branches, layers, states or lines:
+    options nobody passes, wrappers with one caller, extension points with one
+    implementation, guards for states that cannot occur, dead code, leftover shims.
+11. **Placement.** Code outside the module and layer that own its data and concern; an
     upward or cyclic dependency; generic logic buried in a feature module, or feature
     logic leaked into a shared one; a central helper forked instead of extended; a public
     surface wider than its callers need, or shaped around one call site; code the next
     caller would not find. Ask for more generality only when a second consumer exists or
     the contract requires it.
-11. **Docs and operability.** Every doc statement the diff touches, checked against the
+12. **Docs and operability.** Every doc statement the diff touches, checked against the
     code; the log and error messages, changelog and migration notes the change calls for.
 
 ## Later rounds
