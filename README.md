@@ -157,6 +157,11 @@ itself.
   (decision record, worktree, reviewers, live smoke, minor sweep); gate and review are
   never skipped.
 - **Explicit severity scale** — critical / major / minor / nit, restated in every reviewer prompt.
+- **Review lenses** — reviews work through eleven named lenses (intent, correctness, failure
+  behaviour, blast radius, security, tests, performance, duplication, simplicity, placement,
+  docs and operability), split between two reviewers when the loop runs two; a finding needs
+  a trigger or design evidence, and what only a build or test run could prove is listed for
+  the orchestrator to run.
 - **Convergence rule** — from round 2 on, only regressions, unmet requirements or defects on
   changed lines block; everything else goes to a backlog instead of looping forever.
 - **Per-round protocol** — implement → gate + spot-read → `git add -N` (so new files

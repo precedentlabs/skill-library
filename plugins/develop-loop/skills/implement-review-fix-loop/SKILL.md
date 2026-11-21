@@ -85,13 +85,15 @@ is unmet: keep looping; ask only about things outside the instruction (push, mer
 | Severity | Meaning |
 |---|---|
 | critical / blocker | wrong behaviour, data loss, security hole, broken build/gate, violated MUST rule |
-| major | requirement unmet; regression; observable behaviour with no test; a stale *contract* (docs, schema, migration header, another unit's spec); a reimplemented primitive; hot-path cost the rules forbid |
-| minor | stale comment/doc wording, near-duplicate test setup, dead code left behind, small simplification |
+| major | requirement unmet; regression; observable behaviour with no test; a stale *contract* (docs, schema, migration header, another unit's spec); a reimplemented primitive; logic duplicated so the copies must change together; an upward or cyclic dependency; hot-path cost the rules forbid |
+| minor | stale comment/doc wording, near-duplicate test setup, dead code left behind, small simplification, code in the wrong module with no dependency broken |
 | nit | taste; optional |
 
 Reviewers are strict but evidence-based: critical/major only for real correctness,
-regression, data-loss, security or rule violations, each with `file:line`, evidence and
-a concrete fix. Findings the code does not support are not findings.
+regression, data-loss, security or rule violations and the design defects the scale names,
+each with `file:line`, evidence and a concrete fix. Design findings are ranked by what the
+next change will cost, never by taste. Findings the code does not support are not
+findings.
 
 ### Convergence rule for later rounds
 
@@ -99,10 +101,10 @@ a concrete fix. Findings the code does not support are not findings.
 From round 2 on, a finding is critical/major/minor **only if** it is (a) a regression
 the unit's own changes caused (including a fix breaking an earlier accepted fix),
 (b) a requirement clause still unmet, or (c) a defect on a line the unit added or
-changed. Anything else is `pre-existing:` and goes to the backlog (§4). Reviewers must
-not re-raise a finding the fixer or the orchestrator's triage rejected *with a reason*
-unless they show why the reason is wrong, and must not reopen a fix an earlier round
-accepted.
+changed. Anything else is `pre-existing:` and goes to the backlog (§4). Reviewers raise
+no new nits from round 2 on. Reviewers must not re-raise a finding the fixer or the
+orchestrator's triage rejected *with a reason* unless they show why the reason is wrong,
+and must not reopen a fix an earlier round accepted.
 
 ## 2. The per-round protocol
 
@@ -118,12 +120,19 @@ accepted.
    code. Then run `git -C <worktree> add -N .` (intent-to-add, stages no content) so files
    the implementer created appear in `git diff`.
 3. **Review.** Fresh `dl-reviewer` agent(s) scoped to the diff (§3). Required output:
-   findings with severity, `file:line`, evidence, fix; a `## Out of scope` section; the
-   line `TIER: keep` or `TIER: up — <reason>` for the next fix round (§3); last line
-   `VERDICT: PASS` (nothing at or above the bar) or `VERDICT: FIX`.
-4. **Triage every finding yourself**: fix / reject with a reason / the spec is wrong →
-   write a decision and amend / accept as is. You make the design call; do not hand the
-   fixer an open question.
+   findings with severity, `file:line`, evidence, fix; a `## Out of scope` section; a
+   `## Not checked` section (assigned lenses or areas the reviewer did not cover and why;
+   each suspicion only a build or test run could prove, with its command; each untracked
+   file the diff does not show); the line `TIER: keep` or `TIER: up — <reason>` for the
+   next fix round (§3); last line `VERDICT: PASS` (nothing at or above the bar) or
+   `VERDICT: FIX`.
+4. **Triage every finding yourself.** First settle `## Not checked`, on every review, PASS
+   included: run each command it names (yourself or via `dl-runner`), a failure is a
+   finding; send a lens or area left uncovered back to a reviewer; `git add -N` an
+   untracked file that belongs to the unit and have it reviewed, drop one that does not;
+   what stays unverified goes into the final report (§7 step 4). Then for each finding:
+   fix / reject with a reason / the spec is wrong → write a decision and amend / accept as
+   is. You make the design call; do not hand the fixer an open question.
 5. **Fix.** Dispatch every finding triaged as fix to fixer subagents through
    `tiered-fanout`, in one batch, even a one-line or doc-only fix; the orchestrator
    edits in this step only in the cases listed at the top of this skill:
@@ -149,7 +158,8 @@ accepted.
    re-read the whole current diff for anything the fix introduced. If the harness cannot
    message the reviewer, spawn a fresh one with the round-1 prompt, its previous report and
    the re-review block.
-8. Repeat 4–7 until the verdict meets the bar.
+8. Repeat 4–7 until the verdict meets the bar and the last review's `## Not checked` is
+   settled (step 4); a failed check reopens the loop.
 
 **Cosmetic tail.** From round 2 on, when at most two items are still open and each is a
 comment, a doc line that changes no stated fact, a format fix, or a change with no
@@ -171,24 +181,28 @@ remaining findings; the loop stops there.
 ## 3. Reviewer setup
 
 - Spawn the `dl-reviewer` agent (`develop-loop:dl-reviewer` in Claude Code; model routing
-  per harness in `tiered-fanout` §4): it carries the read-only rules, the ask rule and the
-  output format (findings, `## Out of scope`, `TIER:`, `VERDICT:`). Without plugin agents,
-  paste its body at the top of the reviewer prompt and set the reviewer's model and effort
-  from the agent table in `tiered-fanout` §4. Read-only: no edits, no commits, no
-  build/test/gate runs (orchestrator owns those); scratch edits only if reverted.
+  per harness in `tiered-fanout` §4): it carries the read-only rules, the evidence rule,
+  the review lenses, the ask rule and the output format (findings, `## Out of scope`,
+  `## Not checked`, `TIER:`, `VERDICT:`). Without plugin agents, paste its body at the top
+  of the reviewer prompt and set the reviewer's model and effort from the agent table in
+  `tiered-fanout` §4. Read-only: no edits, no commits, no build/test/gate runs
+  (orchestrator owns those); scratch edits only if reverted.
 - **Scope to the diff**, stated as a command: `git -C <worktree> diff <base>` (the working
   tree against the unit's base, so uncommitted changes are included; new files show
-  because of the `add -N` in §2 steps 2 and 6). "Review ONLY changed lines/hunks."
+  because of the `add -N` in §2 steps 2 and 6). Findings only on lines the diff adds,
+  changes or removes, a defect the change causes elsewhere included (anchored on the line
+  that causes it); the reviewer still reads beyond the diff for callers, existing
+  implementations and placement.
 - Give a `Check especially:` list of the risks this unit can break: worst-legal-input
   bounds, shutdown/lifecycle, error shapes, authz, caching, test determinism, etc.
 - Run **two reviewers split by lens** on units that change behaviour or mix kinds of work
   (implementation vs tests, or code vs docs/CSS); a Trivial change (§0) always takes one.
-  A single reviewer who already saw the code missed a test-coverage major that a second
-  one caught.
+  Each of the two prompts names its lenses from the `dl-reviewer` list. A single reviewer
+  who already saw the code missed a test-coverage major that a second one caught.
 - Tests are judged by: *name the concrete pre-fix or plausible-bug behaviour that makes
   it fail; flag any test that would pass with a buggy implementation.*
 - Quote the contract documents the reviewer must check against (decision record,
-  README, mockup) and say which other units' areas to ignore.
+  README, mockup), name the repo rules file, and say which other units' areas to ignore.
 - **Reviewer model.** Always `dl-reviewer`'s model (the agent table in `tiered-fanout`
   §4), whatever tier wrote the code. Reviewers are not tiered and never escalate.
 - Reviewers ask the orchestrator when the contract or the scope is unclear, instead of
