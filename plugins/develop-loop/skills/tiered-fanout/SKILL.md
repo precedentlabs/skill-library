@@ -72,7 +72,7 @@ move an item up:
 1. **The agent struggles** (§5 draws the line between struggling and asking). It stops
    editing and sends the parent a **struggle handoff** (template in the agent's system
    prompt, §4); the parent re-assigns the item one step up at once (§5).
-2. **A fix fails twice** at the item's current tier. A failure is one of: the gate is red
+2. **A fix fails twice** at the item's current tier. A failure is one of: the round check or full gate is red
    on the item's files after its agent reported done; the re-review reports a prior
    finding on the item unresolved; the fix introduced a regression. A `VERDICT: FIX` that
    only carries new findings is not a failure. Failures are counted per work item, not per
@@ -89,7 +89,8 @@ move an item up:
 
 Deep has no step above. On any trigger at Deep (struggle handoff, second failed fix,
 reviewer `TIER: up`) the parent takes the item over itself, working as in the loop's
-takeover round (no subagents: verify, fix, gate; `implement-review-fix-loop` §2), or asks
+takeover round (no subagents: verify, fix, targeted tests and the round check;
+`implement-review-fix-loop` §2), or asks
 the user; the unit's other items and its round count go on unchanged. Record every
 escalation and its trigger for the report.
 
@@ -109,8 +110,9 @@ escalation and its trigger for the report.
 ## 4. Spawn the tier's agent with a self-contained task
 
 Every tier has a plugin agent (`agents/` in this plugin). Its system prompt carries what
-every task needs: absolute paths, owned files only, no gate, no commit, shared docs
-reported instead of edited, regression tests proven to fail first, the ask rule, the
+every task needs: absolute paths, owned files only, targeted tests only (never the full
+suite or the gate), no commit, shared docs reported instead of edited, regression tests
+proven to fail first, reviewer probes used as repro then deleted, the ask rule, the
 struggle handoff template and the report formats.
 
 | Work | Agent | Model:effort |
@@ -179,13 +181,16 @@ cannot message a running or idle subagent, spawn a fresh one the same way.
 
 ```
 # Target (fresh fixer only)
-Worktree `<absolute path>`. Files you may edit: <list>. Environment: <can build and run tests | cannot: report breaks>. Diff so far:
+Worktree `<absolute path>`. Files you may edit: <list, including the `dl-probe` files below>. Environment: <can build and run tests | cannot: report breaks>. Diff so far:
 `git -C <worktree> diff <base>`. Previous report: <attached>.
 Repo rules: <absolute path of the rules file>.
 # Round
 Round <N> findings on your files: <n> critical, <n> major, <n> minor.
 Binding decisions:
 - <finding id>: <decision, with evidence>
+Probes (reviewer repros; reproduce with each, fix, carry the case into the regression test, then delete it):
+- <finding id>: `<path>` · run: `<command>`
+Tests: targeted only (your new tests and the existing tests of the code you change); never the full suite.
 ```
 
 The diff includes new files because the loop's orchestrator ran `add -N` before the review
@@ -233,19 +238,23 @@ task finishes (editing a doc while its owner is still running clobbers lines).
 
 Verify doc edits by reading the result.
 
-## 7. Gate fallout after a fanout
+## 7. Round check and full gate
 
-Implementers do not run the gate (where the environment allows, they format and
-compile-check their own files). After every task of the batch (§6) is back, the loop's
-orchestrator runs the project's full gate once per batch (never once per task), in the
-repo's documented order (format, lint, tests, other checks, duplicate/clone detection),
-itself or through `dl-runner`, whose raw output it reads and judges. Expect and handle:
+Implementers and fixers never run the full test suite or the gate; where the environment
+allows they format and compile-check their own files and run targeted tests only (their
+new tests and the existing tests of the code they change). After every task of the batch
+(§6) is back, the loop's orchestrator runs the **round check** once per batch (never once
+per task): format, lint and build, no test suite. The **full gate** in the repo's
+documented order (format, lint, build, the full test suite, other checks,
+duplicate/clone detection) runs once, after every unit has passed all its review rounds
+(`implement-review-fix-loop` §7 step 1). The orchestrator runs both itself or through
+`dl-runner`, whose raw output it reads and judges. Expect and handle:
 
 1. **Duplicate-code / clone detectors** flag the near-identical test setups that parallel
    agents write independently. Dispatch them as fix items (Standard tier): extract one
    helper per pair, never weaken assertions. The fixer may run the duplicate detector itself
    (a static tool, not a build) and reports its output. Like every fix, they get the loop's
-   gate and re-review before they land.
+   round check and re-review, then the full gate again, before they land.
 2. **Mechanical diagnostics**: strict-lint noise on helpers added for tests (e.g. redundant
    visibility), a compile error at a named line, a format diff. When the tool prints the
    exact fix, the parent applies it as printed (the exceptions at the top of
@@ -256,7 +265,9 @@ itself or through `dl-runner`, whose raw output it reads and judges. Expect and 
    that still hold (checked ≤ limit, counted == checked, outcomes sum to total). Say so in
    the report; do not silently loosen a test that exercises a valid case without stating why
    the old expectation no longer applies.
-4. Re-run the full gate after the last edit; one edit invalidates it.
+4. Any edit after the full gate invalidates it: re-run it after the last one. Fixes for its
+   failures run targeted tests only, like every fix; only the orchestrator runs the full
+   gate.
 
 ## 8. Report to the loop
 

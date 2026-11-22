@@ -10,12 +10,30 @@ orchestrator edits a unit's files only in these cases, never otherwise to apply 
 however small: the cosmetic tail and the takeover round (§2); an item `tiered-fanout` §2
 hands to the parent (a trigger at Deep, or any trigger in an untiered session,
 `tiered-fanout` §4); doc wording a subagent reported for a shared doc (`tiered-fanout` §3
-and §6); a gate diagnostic whose exact fix the tool prints (a compile error at a named
-line, a lint with its suggested replacement, a format diff), a few lines in one file,
-applied as printed and confirmed by the gate (`tiered-fanout` §7). Nothing is "done" on a
-subagent's word: the loop ends only on a reviewer verdict (or the cosmetic tail, §2)
-**plus** a green gate owned by the orchestrator (run by it, or by `dl-runner` whose raw
+and §6); a round-check or gate diagnostic whose exact fix the tool prints (a compile error
+at a named line, a lint with its suggested replacement, a format diff), a few lines in one
+file, applied as printed and confirmed by re-running that check (`tiered-fanout` §7).
+Nothing is "done" on a subagent's word: the loop ends only on a reviewer verdict (or the
+cosmetic tail, §2) **plus** a green full gate, test suite included, that the orchestrator
+runs once all review rounds have passed (§7 step 1; run by it, or by `dl-runner` whose raw
 output it reads and judges).
+
+### Who runs which tests
+
+| Who | Runs | Never runs |
+|---|---|---|
+| Implementer, fixer | where the environment allows: format and compile check of the files it touched; **targeted tests only**: the tests it adds and the existing tests that exercise the code it changed (selected by file or filter), as often as it needs; the reviewer's probe of each finding it fixes | the full test suite, the gate |
+| Reviewer | only its own throwaway `dl-probe` files (§3) | the full test suite, the project's tests, the gate |
+| Orchestrator (itself or through the runner agent of `tiered-fanout` §4) | per round, the **round check** (format, lint, build; no test suite) and the targeted commands of §2 steps 4 and 6; **once, after every unit passed all its review rounds**, the **full gate** (format, lint, build, the full test suite, other checks; §7 step 1), again after any later edit | the full test suite during the review rounds |
+
+**Probe lifecycle.** A reviewer proves a finding with a throwaway test or script (a
+`dl-probe` file, §3), keeps it, and the finding names its path, the command that runs it
+and the result. The probe goes to the fixer of that finding as its repro case: the fixer
+runs it to see the failure, fixes, runs it to see it pass, carries the case into the
+permanent regression test, then deletes the probe. Only that fixer deletes it; the two
+exceptions are probes with no fixer: the reviewer deletes a probe that proved no finding
+before it reports, and the orchestrator deletes the probe of a finding it rejects or
+accepts as is (§2 step 4). No `dl-probe` file is ever committed.
 
 Place in the hierarchy: `triage-findings` selects a batch → this loop → `tiered-fanout`
 does the implement and fix work, each item on the model tier its difficulty needs. The
@@ -38,8 +56,9 @@ files (tests, the gate, deployments) use `tiered-fanout` without it.
   exploring.
 - One worktree per unit when units run in parallel (§6).
 - Decide whether implementers can build and run tests in this environment, and say so in
-  every task (the `tiered-fanout` §4 template). Where they cannot, the orchestrator proves
-  each regression test fails (§2 step 6); where they can, reviewers run probes (§3).
+  every task (the `tiered-fanout` §4 template). Where they can, they run targeted tests
+  only and reviewers write probes (§3); where they cannot, the orchestrator proves each
+  regression test fails (§2 step 6). Nobody runs the full test suite before §7 step 1.
 - **Entry from triage.** An approved batch from `triage-findings`: each group in the batch
   (rows sharing an owning file or a root cause) becomes one unit and stays whole; a sweep
   group becomes one sweep unit. The table's difficulty hints go to `tiered-fanout` as tier
@@ -47,16 +66,17 @@ files (tests, the gate, deployments) use `tiered-fanout` without it.
 - **Entry from optimize.** An accepted `optimize` change is one unit, already implemented
   and gated in its perf worktree: start at §2 step 3 on `git -C <worktree> diff main`, with
   the plan of `optimize` §0 as the contract document, and run steps 3–8 until the verdict
-  meets the bar. The orchestrator commits fixes on the perf branch and reports every fix
-  that touches the measured path. §5 integration and §7 finish do not apply: out-of-scope
-  findings go to the backlog, and `optimize` does the measurement, record and merge. At
-  the round cap there is no takeover round: stop and hand back to `optimize`, which
-  rejects the change.
+  meets the bar, then run the full gate once in the perf worktree (§7 step 1; its fallout
+  is a fix round, then the full gate again). The orchestrator commits fixes on the perf
+  branch and reports every fix that touches the measured path. §5 integration and the
+  rest of §7 do not apply: out-of-scope findings go to the backlog, and `optimize` does
+  the measurement, record and merge. At the round cap there is no takeover round: stop and
+  hand back to `optimize`, which rejects the change.
 
 ### Loop size
 
-The size of the change sets which steps apply. Gate and review are never skipped at any
-size; when in doubt take the larger column.
+The size of the change sets which steps apply. Round check, review and the final full gate
+are never skipped at any size; when in doubt take the larger column.
 
 | Step | Trivial | Single unit | Multi-unit |
 |---|---|---|---|
@@ -65,7 +85,8 @@ size; when in doubt take the larger column.
 | Scout (§0) | no | when the code map is unknown | when the code map is unknown |
 | Worktree (§6) | no, current checkout | no, current checkout | one per unit |
 | Implementer (§2 step 1) | one, usually Light | one, or several file-disjoint items through `tiered-fanout` | one or more per unit |
-| Gate (§2 steps 2 and 6) | yes | yes | yes, per unit and once integrated (§7 step 1) |
+| Round check (§2 steps 2 and 6) | yes | yes | yes, per unit |
+| Full gate with the full test suite (§7 step 1) | once, after review passed | once, after review passed | once, on the integrated result after every unit passed review |
 | Reviewers (§3) | one | one; two split by lens when §3 calls for it | per unit; two split by lens when §3 calls for it |
 | Live smoke (§7 step 2) | no | when observable behaviour changed | yes |
 | Minor sweep (§7 step 3) | no | only with input | only with input |
@@ -116,23 +137,27 @@ weakness on a path the unit adds is a new finding.
    active bar. Implementers ask the orchestrator when unsure or blocked and send a struggle
    handoff when the work is beyond them; answer or re-assign one step up per
    `tiered-fanout` §5.
-2. **Orchestrator gate + spot-read.** Run build/lint/tests (yourself or via `dl-runner`,
-   reading its raw output); read the diff. Red → apply a fix the tool prints, as the top of
-   this skill allows; else send the exact failure back to the implementer. Never review red
-   code. Then run `git -C <worktree> add -N .` (intent-to-add, stages no content) so files
-   the implementer created appear in `git diff`.
+2. **Orchestrator round check + spot-read.** Run the round check: format, lint, build,
+   no test suite (yourself or via `dl-runner`, reading its raw output); read the diff and
+   the targeted tests the implementer reports it ran. Red → apply a fix the tool prints,
+   as the top of this skill allows; else send the exact failure back to the implementer.
+   Never review red code. Then run `git -C <worktree> add -N .` (intent-to-add, stages no
+   content) so files the implementer created appear in `git diff`.
 3. **Review.** Fresh `dl-reviewer` agent(s) scoped to the diff and its blast radius (§3).
-   Required output: findings with severity, `file:line`, evidence, fix; a
+   Required output: findings with severity, `file:line`, evidence, fix, and for a finding
+   proven by a probe the probe's path and run command; a
    `## Out of scope` section; a `## Not checked` section (assigned lenses or areas the
    reviewer did not cover and why; each suspicion neither reading nor a probe settled,
    with the command that proves it and the platform it needs; each untracked file the
    diff does not show); the line `TIER: keep` or `TIER: up — <reason>` for the next fix
    round (§3); last line `VERDICT: PASS` (nothing at or above the bar) or `VERDICT: FIX`.
 4. **Triage every finding yourself.** First settle `## Not checked`, on every review, PASS
-   included: run each command it names (yourself or via `dl-runner`), a failure is a
-   finding; send a lens or area left uncovered back to a reviewer; `git add -N` an
-   untracked file that belongs to the unit and have it reviewed, drop one that does not,
-   delete a `dl-probe` file a reviewer left behind. An item closes only by a run or by a
+   included: run each command it names (yourself or via `dl-runner`; targeted commands,
+   never the full suite), a failure is a finding; send a lens or area left uncovered back
+   to a reviewer; `git add -N` an untracked file that belongs to the unit and have it
+   reviewed, drop one that does not. Leave the `dl-probe` file of each finding you triage
+   as fix in place for its fixer; delete the probe of a finding you reject or accept as
+   is, and a probe no finding points to. An item closes only by a run or by a
    trace that proves it: "probably", "inferred" and "fails closed" close nothing. What
    cannot be run here (another OS) or stays unverified goes into the final report as
    residual risk (§7 step 4), with the platform and what would prove it. Then for each
@@ -152,16 +177,23 @@ weakness on a path the unit adds is a new finding.
      fails before the fix, proven by temporarily swapping in the plausible bug, seeing it
      fail, then reverting (by the fixer, or by the orchestrator in step 6 where fixers
      cannot run tests);
+   - a finding proven by a probe goes to its fixer with the probe's path and run command:
+     the fixer reproduces with it, fixes, carries the case into the regression test and
+     deletes the probe (Probe lifecycle, top of this skill); the probe is in the fixer's
+     files;
+   - fixers run targeted tests only (the table at the top of this skill), never the full
+     suite;
    - a fixer that struggles sends a struggle handoff (`tiered-fanout` §5);
-   - the fanout reports per item (`tiered-fanout` §8); its gate and gate fallout
+   - the fanout reports per item (`tiered-fanout` §8); its round check and its fallout
      (`tiered-fanout` §7) are steps 6–8 here; step 4 here supplies its decided inputs
      (`tiered-fanout` §1).
-6. **Orchestrator gate + read the fix** before re-review. Where fixers could not run
+6. **Orchestrator round check + read the fix** before re-review. Where fixers could not run
    tests, run each break they reported: apply it, run the named test, see it fail,
-   revert; a test that still passes goes back as a finding. Then run
+   revert; a test that still passes goes back as a finding. A `dl-probe` file of a fixed
+   finding still present goes back to its fixer. Then run
    `git -C <worktree> add -N .` again so files the fix created appear in the diff.
 7. **Re-review.** Same reviewer session (or a fresh one for independent eyes on later
-   rounds): verify each prior finding is resolved (repro where possible) **and**
+   rounds): verify each prior finding is resolved (by a fresh probe where possible) **and**
    re-read the whole current diff for anything the fix introduced; each fix is reviewed as
    new code, a fix the reviewer prescribed included. If the harness cannot message the
    reviewer, spawn a fresh one with the round-1 prompt, its previous report and the
@@ -173,7 +205,7 @@ weakness on a path the unit adds is a new finding.
 comment, a doc line that changes no stated fact, a format fix, or a change with no
 behaviour that the compiler or lint verifies (a narrower visibility, an unused import
 removed, a large variant boxed), the orchestrator fixes them inline and confirms with the
-gate instead of another review round. Record that they were not re-reviewed. Round 1
+round check instead of another review round. Record that they were not re-reviewed. Round 1
 findings, more than two items, or anything touching behaviour go through step 5.
 
 **Round cap.** Three automatic fix rounds per unit; escalation inside them is
@@ -181,7 +213,8 @@ findings, more than two items, or anything touching behaviour go through step 5.
 reach the cap at Standard without ever running on Deep. Still failing → stop, summarise
 the remaining findings, and make a **takeover round**: the orchestrator takes the unit
 over and works without subagents (read the review, verify each finding, fix in the
-working tree, gate), then runs the review again: its own fixes regress too. The unit's
+working tree, run targeted tests and the round check, as a fixer would), then runs the
+review again: its own fixes regress too. The unit's
 commit stays the one §5 describes, made once the loop passes. A finding it cannot resolve
 either, or one that needs an operator decision, goes to the user together with the
 remaining findings; the loop stops there.
@@ -194,12 +227,14 @@ remaining findings; the loop stops there.
   `## Out of scope`, `## Not checked`, `TIER:`, `VERDICT:`). Without plugin agents, paste
   its body at the top of the reviewer prompt and set the reviewer's model and effort from
   the agent table in `tiered-fanout` §4. Read-only except probes: no edits to tracked
-  files, no commits, no build/suite/gate runs beyond the probe command (orchestrator owns
-  those).
+  files, no commits, never the full test suite, the project's tests or the gate (the
+  orchestrator owns the gate); it runs only its own probes.
 - **Probes.** Where agents can build and run tests here (§0), give the reviewer a
-  `Probes:` command that runs one test file or script (through the build wrapper of §6
+  `Probes:` command that runs one of its own probe files (through the build wrapper of §6
   when units run in parallel). A check that parses its input differently from the code it
-  guards, a hang, an escape: these show only when something is run.
+  guards, a hang, an escape: these show only when something is run. A probe that proves a
+  finding stays in the worktree for the fixer and the finding points to it (Probe
+  lifecycle, top of this skill); the reviewer deletes only probes that proved nothing.
 - **Scope to the diff and its blast radius**, the diff stated as a command:
   `git -C <worktree> diff <base>` (the working tree against the unit's base, so
   uncommitted changes are included; new files show because of the `add -N` in §2 steps 2
@@ -252,7 +287,7 @@ leftovers, never backlog entries.
 - Integrate by rebasing each unit's single commit onto the feature branch and
   `merge --ff-only`; conflicts are the orchestrator's, not findings.
 - Commit progressively: one focused commit per unit, made by the orchestrator (subagents
-  never commit) once the unit's loop passes.
+  never commit) once the unit's loop passes and its worktree holds no `dl-probe` file.
 
 ## 6. Worktrees and build cache
 
@@ -269,9 +304,14 @@ leftovers, never backlog entries.
 
 ## 7. Finish
 
-1. Full gate once on the integrated result, then the repo's duplicate/clone detector
-   (it finds near-copies that parallel agents wrote independently). Its fixes (extract one
-   helper per pair, never weaken assertions) run as a fix round: §2 steps 4–8.
+1. **Full gate, the only full test-suite run.** Once every unit has passed all its review
+   rounds, run the repo's full gate once on the integrated result (format, lint, build,
+   the full test suite, other checks; yourself or via `dl-runner`), then the repo's
+   duplicate/clone detector (it finds near-copies that parallel agents wrote
+   independently). Failures and clone fixes (extract one helper per pair, never weaken
+   assertions) run as a fix round: §2 steps 4–8, fixers again on targeted tests only. Any
+   edit after the full gate (that fix round, a smoke finding, the minor sweep) re-runs
+   the full gate before the final report.
 2. **Live smoke**: run the real system on a throwaway instance and exercise the changed
    paths in a browser/CLI, through every entry point and run mode that reaches them.
    Reviews that read code miss rendering and integration bugs; smoke tests have caught
@@ -284,7 +324,7 @@ leftovers, never backlog entries.
    Scope it (inefficiency, stale docs, design-doc divergence, duplication), skip
    test-style nits and anything needing an operator decision, and decide every item
    yourself before dispatch (§2 step 4). Then run it as one more round: dispatch through
-   `tiered-fanout` with the sweep prompt, gate, review the sweep diff, fix per §2 steps
+   `tiered-fanout` with the sweep prompt, round check, review the sweep diff, fix per §2 steps
    4–8, and one commit. A sweep never lands unreviewed.
 4. Final report: headline (what landed, commit range, gate result, smoke result) → how it
    ran (rounds per unit, tiers used and escalations) → one bullet per user-visible

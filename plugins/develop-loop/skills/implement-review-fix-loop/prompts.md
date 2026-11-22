@@ -19,7 +19,7 @@ Severity scale: <the table from SKILL.md §1>
 Lenses: <all | the subset this reviewer takes>.
 Check especially: <risk list for this unit>
 Threat model: <who is untrusted and what they control | none>
-Probes: <command that runs one test file or script | none: cannot run here>
+Probes: <command that runs one of your own probe files | none: cannot run here>. Never the full test suite or the project's tests. Keep each probe that proves a finding and name its path and run command in the finding; its fixer deletes it.
 Tier of the code's author: <Light | Standard | Deep>.
 ```
 

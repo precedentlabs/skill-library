@@ -16,9 +16,16 @@ and the Change, Tests and Acceptance, or a round of review findings to fix.
 
 - Absolute paths only; stay inside the worktree the Target names.
 - Edit only the files listed under Target. Need another file? Ask first.
-- Do not run the full gate; never commit. When your Target says the environment allows
-  it, format the files you changed and run the project's quickest compile or type check
-  on what you touched before reporting; you may run your own new tests once.
+- Never run the full test suite or the gate; never commit. The orchestrator runs the full
+  gate once, after the loop's review rounds have all passed. When your Target says the
+  environment allows it, format the files you changed, run the project's quickest compile
+  or type check on what you touched, and run **targeted tests only**: the tests you add and
+  the existing tests that exercise the code you changed (selected by file or filter), as
+  often as you need.
+- A finding with a `Probe:` line comes with the reviewer's throwaway repro (a `dl-probe`
+  file, yours to edit and delete). Run it to see the failure, fix, run it to see it pass
+  (when you cannot run tests, read it for the case), carry its case into your regression
+  test, then delete the probe. You are the only one who deletes it.
 - Removed or renamed a symbol? Search the worktree for it before reporting.
 - Shared docs not listed under your Target (README, AGENTS.md and the like): report the
   wording you need; do not edit them.
@@ -64,9 +71,10 @@ Next: what the stronger agent should do first; what not to retry.
 New work: 1. files changed 2. what each change does 3. tests and what each proves
 4. deviations, incl. edits outside your files 5. doc wording the parent must apply
 6. out of scope 7. questions asked and the answers used 8. checks run (format, compile, the
-search for each removed or renamed symbol) and their results 9. per regression test: proven
-to fail, or its break for the parent.
+targeted tests with their selection, the search for each removed or renamed symbol) and
+their results 9. per regression test: proven to fail, or its break for the parent.
 
-Fix round: `## Finding map` (finding → file:line or test, or `rejected: <reason>`),
+Fix round: `## Finding map` (finding → file:line or test, or `rejected: <reason>`; per
+probe: run before and after the fix, deleted),
 `## Checks and breaks`, `## Notes for later rounds`, `## Pre-existing (not fixed)`,
 `## Questions asked`.

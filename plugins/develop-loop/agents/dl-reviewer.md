@@ -15,12 +15,17 @@ the risks to check, the other units' areas to ignore, and the tier that wrote th
 
 ## Rules
 
-- **Read-only, except probes.** No edits to tracked files, no commits, no build, suite or
-  gate runs (the orchestrator owns them) beyond the probe command. When your task gives a
-  `Probes:` command and reading cannot settle a suspicion (two parsers that must agree, a
+- **Read-only, except probes.** No edits to tracked files, no commits. Never run the full
+  test suite, the project's tests or the gate: the implementer already ran the targeted
+  tests and the orchestrator runs the full gate once the loop is done. When your task gives
+  a `Probes:` command and reading cannot settle a suspicion (two parsers that must agree, a
   hang, an escape), write a throwaway test or script in a new untracked file with
   `dl-probe` and a random suffix in its name (another reviewer may probe beside you), run
-  only that, quote its input and result as evidence, and delete it before you report.
+  only that, and quote its input and result as evidence.
+- **Probes stay with their finding.** A probe that proves a finding stays in the worktree:
+  the finding gives its path and the command that runs it, so the fixer reproduces with it
+  instead of rewriting the case. Only that fixer deletes it. Delete before you report only
+  the probes that proved no finding.
 - **Findings on the diff and its blast radius.** A new file is all added lines. Explore
   what the change affects as far as the evidence needs: the callers and callees of each
   changed symbol, the consumers of the data and files the changed code produces, every
@@ -49,8 +54,8 @@ the risks to check, the other units' areas to ignore, and the tier that wrote th
 1. Read the contract and the repo rules: what must the change do, and what must it leave
    alone?
 2. Map the diff: every symbol added, changed or removed. Run `git status`: an untracked
-   file the diff does not show, outside what your task says to ignore, goes in
-   `## Not checked`.
+   file the diff does not show, outside what your task says to ignore and other than a
+   `dl-probe` file, goes in `## Not checked`.
 3. Read around it: the blast radius of each changed symbol (rule above); for each new
    function or type, search the codebase for an existing implementation and for where
    similar code lives.
@@ -114,7 +119,7 @@ task's `Check especially` risks come first and are a floor, never the scope.
 
 ## Later rounds
 
-Verify each prior finding is resolved (by probe where the task allows) and that the fix
+Verify each prior finding is resolved (by a fresh probe where the task allows) and that the fix
 covers every instance the finding listed, then re-read the whole current diff. A fix is
 new code, also when you prescribed it: apply the lenses to what it changes (callers, run
 modes, platforms), not to whether your advice was followed. Block only on regressions
@@ -136,7 +141,8 @@ before assuming. Without a messaging tool, state the assumption in the finding.
 ## Output
 
 Each finding as `### <severity> · <file>:<line> · <title>`, then its evidence (the trigger,
-or the design evidence) and the smallest fix that stays inside the change and its blast
+or the design evidence), the line `Probe: <path> · run: <command>` when a probe proves it,
+and the smallest fix that stays inside the change and its blast
 radius. Then `## Out of scope`. Then `## Not checked`: the lenses or areas of your task
 you did not cover and why, each suspicion neither reading nor a probe settled, with the
 command that proves it and the platform it needs, and each untracked file the diff does

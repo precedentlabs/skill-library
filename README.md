@@ -148,9 +148,14 @@ For **all implementation work**: features, fixes, doc and test changes, batches 
 `triage-findings`, accepted `optimize` changes; a small change runs the loop at its
 smallest, never skips review. The orchestrator decides, gates and commits; subagents
 implement, review and fix. Nothing is "done" on a subagent's word: the loop ends only on a
-reviewer verdict (or a short cosmetic tail) **plus** a green gate the orchestrator judged
+reviewer verdict (or a short cosmetic tail) **plus** a green full gate the orchestrator judged
 itself.
 
+- **Who runs which tests** — implementers and fixers run targeted tests only (the tests they
+  add and the existing tests of the code they change); reviewers run only their own
+  throwaway probes, never the project's tests; the orchestrator runs a round check (format,
+  lint, build) each round and the full test suite once, after every unit passed all its
+  review rounds.
 - **Contract first** — open decisions are written down before any code; work is split into
   units with disjoint file sets, ordered by risk.
 - **Loop size** — trivial, single unit or multi-unit: the size sets which steps apply
@@ -160,9 +165,10 @@ itself.
 - **Review lenses** — reviews work through twelve named lenses (intent, correctness,
   concurrency, failure behaviour, blast radius, security, tests, performance, duplication,
   simplicity, placement, docs and operability), split between two reviewers when the loop
-  runs two; a finding needs a trigger or design evidence. Reviewers may run throwaway
-  probes; what neither reading nor a probe settles is listed for the orchestrator to run,
-  or reported as residual risk.
+  runs two; a finding needs a trigger or design evidence. Reviewers may write throwaway
+  probes; a probe that proves a finding stays in the worktree, the finding points to it, and
+  the fixer uses it as the repro and deletes it. What neither reading nor a probe settles is
+  listed for the orchestrator to run, or reported as residual risk.
 - **Diff plus blast radius** — findings count on changed lines and in the code the change
   affects (callers, callees, consumers, entry points, old code newly exposed) when the
   change causes, exposes or relies on the defect; units on a trust boundary get a threat
@@ -170,9 +176,10 @@ itself.
 - **Convergence rule** — from round 2 on, only regressions, unmet requirements or defects on
   changed lines or in their blast radius block; everything else goes to a backlog instead
   of looping forever.
-- **Per-round protocol** — implement → gate + spot-read → `git add -N` (so new files
+- **Per-round protocol** — implement → round check + spot-read → `git add -N` (so new files
   show in the diff) → review of the diff and its blast radius (`TIER: keep | up`,
-  `VERDICT: PASS | FIX`) → triage → fix → gate → re-review; implement and fix run through
+  `VERDICT: PASS | FIX`) → triage → fix → round check → re-review → … → full gate once at
+  the end; implement and fix run through
   `tiered-fanout`; fixes go to subagents, and the orchestrator edits only in the few cases
   the skill lists, such as the takeover round below.
 - **Reviewer upgrades the fixer** — reviewers always run on `opus-5-5:high`; a review that
@@ -203,8 +210,9 @@ that fails at the very end. On its own it only runs tests, the gate or deploymen
 | Deep | `dl-implementer-deep` | `opus-5-5:medium` | multi-module work, concurrency, complex algorithms, optimisations, large reasoning-heavy tasks |
 | Review | `dl-reviewer` | `opus-5-5:high` | every review in the loop; read-only apart from throwaway probes |
 
-Each implementer's system prompt carries the rules every task needs (owned files only, no
-gate, no commit, ask the parent, struggle handoff, report format); `dl-reviewer` and
+Each implementer's system prompt carries the rules every task needs (owned files only,
+targeted tests only, no gate, no commit, reviewer probes as repro, ask the parent, struggle
+handoff, report format); `dl-reviewer` and
 `dl-runner` carry their limits, the ask rule and their report format. Task
 prompts carry only the work.
 
