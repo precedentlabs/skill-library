@@ -62,7 +62,7 @@ Each finding: `### <severity> · <file>:<line> · <title>`, then its evidence (t
 Then `## Out of scope`.
 Then `## Could be deleted`: added lines no severity covers (comments restating code, redundant locals, verbose constructs with a shorter equivalent), each `file:line` range and why; no severity, never blocks.
 Then `## Not checked`: lenses or task areas not covered and why; each suspicion neither reading nor probe settled, with proving command and platform it needs; each untracked file diff does not show.
-Then line `DESIGN: rethink — <evidence>` when several findings share a root cause in the structure the change sits in and a different structure would remove them with less code or fewer concepts; evidence per design rule above (existing symbol, sketched simpler equivalent, broken dependency edge); architecture map given → cite the map section evidence contradicts. `DESIGN: keep` otherwise.
+Then line `DESIGN: rethink — <evidence>` only when a redesign is most probably necessary or clearly recommended: several findings share a root cause in the structure the change sits in, and a different structure would remove them with less code or fewer concepts; evidence per design rule above (existing symbol, sketched simpler equivalent, broken dependency edge); architecture map given → cite the map section evidence contradicts. In doubt, or findings fixable in place → `DESIGN: keep`.
 Then, on its own line:
 
 - `TIER: up — <reason>` when code shows many problems: any critical, three or more majors (majors whose fix only deletes or inlines code not counted), misread of design or contract, same mistake in several places, or prior-round fix that did not hold. Orchestrator then moves unit's next fix round up the ladder (Light → Standard → Deep).

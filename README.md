@@ -160,20 +160,22 @@ itself.
   review rounds, plus once for a refactor unit before feature units build on it.
 - **Contract first** — open decisions are written down before any code; work is split into
   units ordered by risk, with disjoint file sets when they run in parallel.
-- **Architecture map before code** — for features that add a concept or touch several
-  files, `dl-architect` maps where the feature belongs, what to reuse and delete, and
-  whether a preparatory refactor makes it smaller, with both paths sized. A refactor
-  reaching beyond the feature's files, changing a contract or growing the change goes to
-  the user for approval; a chosen refactor lands first as its own behaviour-preserving
-  unit.
+- **Architecture map before code** — only when the spec or scout briefing suggests the
+  feature does not fit the current structure, `dl-architect` maps where it belongs, what
+  to reuse and delete, and whether a preparatory refactor makes it smaller, with both
+  paths sized. It reads only the code around the change, never the whole project. A
+  refactor reaching beyond the feature's files, changing a contract or growing the change
+  goes to the user for approval; a chosen refactor lands first as its own
+  behaviour-preserving unit.
 - **Less code** — each unit has a size budget, measured with `git diff --numstat` every
   round and reported per unit; simplify requests run in simplify mode (behaviour unchanged,
   net code lines down); fixes that change no behaviour add no tests; implementers follow
   smallest-change rules and cut their own diff before reporting.
-- **Design rethink** — when a reviewer shows that findings share a structural root cause,
-  or the round cap is reached, `dl-architect` proposes a restructure; if it resolves the
-  findings with less code or fewer concepts, the user approves or declines it, and the
-  proposal's stated size becomes the restructure's acceptance test.
+- **Design rethink** — only when a reviewer judges a redesign most probably necessary
+  (findings share a structural root cause a different structure removes), `dl-architect`
+  proposes a restructure, reading only the code the diff and findings touch; if it
+  resolves the findings with less code or fewer concepts, the user approves or declines
+  it, and the proposal's stated size becomes the restructure's acceptance test.
 - **Loop size** — trivial, single unit or multi-unit: the size sets which steps apply
   (architecture map, decision record, worktree, reviewers, live smoke, minor sweep); gate
   and review are never skipped.

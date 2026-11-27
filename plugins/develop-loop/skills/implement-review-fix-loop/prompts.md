@@ -12,6 +12,8 @@ above each prompt and set the model as `tiered-fanout` §4 says.
 
 ```
 Mode: map. Feature: <spec / decision-record ids>. Repo rules: <absolute path>.
+Redesign signal: <what in spec or scout briefing suggests it>.
+Scope: <files and modules around the change; read nothing beyond their direct callers and callees>.
 Scout briefing: <attached | none>. Test pathspec: <pathspec>.
 Other units (ignore): <list>.
 ```
@@ -21,7 +23,7 @@ Other units (ignore): <list>.
 ```
 Mode: rethink. Unit <name>, round <N>. Worktree <path>, base <sha>.
 Diff: `git -C <path> diff <base>`; size so far: code <+A −R>, tests <+A −R>.
-Trigger: <reviewer's DESIGN line, verbatim | round cap>.
+Trigger: <reviewer's DESIGN line, verbatim>. Scope: code the diff and these findings touch.
 Open findings: <ids + one line each>. Accepted fixes: <ids>.
 Architecture map: <path | none>. Contract: <docs>. Repo rules: <absolute path>.
 Other units and their files: <list>.
