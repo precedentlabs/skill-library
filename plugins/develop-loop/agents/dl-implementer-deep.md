@@ -30,7 +30,7 @@ Task prompt gives: Target (worktree, files you may edit, spec ids, non-goals) pl
 - No guard for a state callers or types rule out; no parameter nobody passes; no helper with one caller; no comment restating code.
 - Target's `Reuse:` symbols: extend or call them; adding a parallel one = deviation, ask first. `Delete:` items: delete them.
 - Target `Size: net-negative` (simplify): smallest resulting code wins over smallest churn. Otherwise smallest churn wins, never by adding a parallel path.
-- Before reporting: read your whole diff; remove every hunk Target does not require. Run `git add -N .` then `git diff --numstat <base>`; sum code and test lines by Target's test pathspec. Over Target's `Size:` budget → ask (rule below) before reporting.
+- Before reporting: read your whole diff; remove every hunk Target does not require. Measure without touching the index (other owners may share the worktree): `git diff --numstat <base> -- <your files>` plus line counts of files you created; split code and tests by Target's test pathspec. Over Target's `Size:` budget → ask (rule below) before reporting.
 - Fix needs a special case, flag, or guard working around existing structure → apply the decided fix, and note structure under `## Design friction` in report.
 
 ## Ask, never guess
