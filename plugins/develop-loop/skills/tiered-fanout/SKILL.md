@@ -82,7 +82,7 @@ Repo rules: <absolute path of the rules file>.
 Other owners (do not touch): <list>. Non-goals: <list>.
 Design: <wording given | design given | design open within constraints>.
 Reuse: <symbols to extend or call | none>. Delete: <code to remove | none>. Placement: <module | none>.
-Size: <net code and test lines | net-negative>; measure with `git diff --numstat <base sha>`, tests = `<pathspec>`.
+Size: <net code and test lines | net-negative>; measure with `git diff --numstat <base sha> -- <your files>`, tests = `<pathspec>`.
 # Change
 1. <numbered steps; binding decisions inline; symbol/line hints; the constraints that make it correct>
 # Tests
