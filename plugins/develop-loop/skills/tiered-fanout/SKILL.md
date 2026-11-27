@@ -22,9 +22,9 @@ Contract mismatch with two valid resolutions (fix code vs. fix docs) → pick co
 
 |Tier|Work|
 |---|---|
-|Light|docs and comment wording, doc table rows, simple tests in an existing harness, mechanical edits (renames, config entries, boilerplate from a given template, call-site migrations to a given API followed by a search for the old name), mechanical lint fixes, reading transcripts or logs and extracting given figures, running tests or the gate and reporting raw output, deployments the user asked for|
+|Light|docs and comment wording, doc table rows, simple tests in an existing harness, mechanical edits (renames, config entries, boilerplate from a given template, call-site migrations to a given API followed by a search for the old name), deletions and inlining that change no behaviour (whatever tier wrote the unit), mechanical lint fixes, reading transcripts or logs and extracting given figures, running tests or the gate and reporting raw output, deployments the user asked for|
 |Standard|small to medium coding work: a handler, endpoint or feature following an existing pattern, rewriting one function, a new small primitive module (its call-site migration is a separate Light item), non-trivial tests including missing test cases for decided behaviour (also of concurrency code, when the harness already sets the scenario up), helpers extracted for duplicate-check pairs, bounding a resource with an existing primitive; no complicated algorithms|
-|Deep|multi-module work, concurrency and lifecycle (session leases, failover, ordering), complex algorithms, optimisations, startup/migration ordering, wire-format and security invariants, refactoring a shared primitive, fixes with two plausible directions or a measure the spec leaves open, any large task that needs complex reasoning; not the test, dedupe or lint follow-ups of its own items|
+|Deep|multi-module work, concurrency and lifecycle (session leases, failover, ordering), complex algorithms, optimisations, startup/migration ordering, wire-format and security invariants, refactoring a shared primitive, restructures from an approved design proposal, fixes with two plausible directions or a measure the spec leaves open, any large task that needs complex reasoning; not the test, dedupe or lint follow-ups of its own items|
 
 - Classify per item, not per batch. Item merged from several (§3) takes highest tier of its parts.
 - Later rounds' findings: classify each one by the table, not by tier that wrote the unit. Lint fix or call-site migration → Light; missing test case or helper extracted for duplicate-check pair usually below unit's tier too. Only a finding needing the unit's own reasoning (its concurrency, its design decision) keeps unit's tier. Reviewer's `TIER: up` (trigger 3) raises only findings needing that reasoning.
@@ -55,7 +55,7 @@ Deep has no step above. Any trigger at Deep (struggle handoff, second failed fix
 
 ## 4. Spawn the tier's agent with a self-contained task
 
-Every tier has a plugin agent (`agents/` in this plugin). Its system prompt carries what every task needs: absolute paths, owned files only, targeted tests only (never full suite or gate), no commit, shared docs reported not edited, regression tests proven to fail first, reviewer probes used as repro then deleted, the ask rule, struggle handoff template, report formats.
+Every tier has a plugin agent (`agents/` in this plugin). Its system prompt carries what every task needs: absolute paths, owned files only, targeted tests only (never full suite or gate), no commit, shared docs reported not edited, regression tests proven to fail first (none for changes altering no behaviour), smallest-change rules and size measurement, reviewer probes used as repro then deleted, the ask rule, struggle handoff template, report formats.
 
 |Work|Agent|Model:effort|
 |---|---|---|
@@ -64,11 +64,12 @@ Every tier has a plugin agent (`agents/` in this plugin). Its system prompt carr
 |Deep item|`dl-implementer-deep`|`opus-5-5:medium`|
 |Tests, gate, deployment|`dl-runner`|`haiku-5-5:high`|
 |Review (`implement-review-fix-loop` §3)|`dl-reviewer`|`opus-5-5:high`|
+|Architecture map, design rethink (`implement-review-fix-loop` §0)|`dl-architect`|`opus-5-5:high`|
 
 Spawn agent for item's tier; escalation (§2) spawns next one up. Task prompt carries only the item. Model routing per harness:
 
 - **Claude Code**: reads `model` and `effort` from agent file; plugin agents named `develop-loop:<agent>` (e.g. `develop-loop:dl-runner`).
-- **oh-my-pi**: ignores `model` in Claude-format plugin agents; route agents through model roles (`task.agentModelOverrides` → `modelRoles`) in `~/.omp/agent/config.yml` (global) or `.omp/config.yml` (project). Before first spawn read both, confirm all five `dl-*` agents routed. If one missing, entries to add: one `modelRoles` entry per agent-table row (`dl_light`, `dl_standard`, `dl_deep`, `dl_review`, each `<provider>/<model>:<effort>`) plus `task.agentModelOverrides` mapping each agent to its role as `"@<role>"` (`dl-runner` → `@dl_light`); repository README has it written out. Not routed → ask user **once** with two options: (a) add routing and continue tiered, or (b) run this session untiered, every agent on parent's model. Never fall back silently. Under (b): classification, ownership, reports still apply; ladder has no steps (struggle handoff or second failed fix goes straight to parent, as at Deep); report states tiers not applied. Tool limits (`disallowedTools`) also do not apply in oh-my-pi: `dl-reviewer` and `dl-runner` keep their limits by their prompts. Set thinking level in one place: never pass task tool's `effort` when agent's role or a per-call `model` already carries a `:level`; `effort` overrides it, and `hi` means model's highest level.
+- **oh-my-pi**: ignores `model` in Claude-format plugin agents; route agents through model roles (`task.agentModelOverrides` → `modelRoles`) in `~/.omp/agent/config.yml` (global) or `.omp/config.yml` (project). Before first spawn read both, confirm all six `dl-*` agents routed. If one missing, entries to add: one `modelRoles` entry per agent-table row (`dl_light`, `dl_standard`, `dl_deep`, `dl_review`, `dl_architect`, each `<provider>/<model>:<effort>`) plus `task.agentModelOverrides` mapping each agent to its role as `"@<role>"` (`dl-runner` → `@dl_light`); repository README has it written out. Not routed → ask user **once** with two options: (a) add routing and continue tiered, or (b) run this session untiered, every agent on parent's model. Never fall back silently. Under (b): classification, ownership, reports still apply; ladder has no steps (struggle handoff or second failed fix goes straight to parent, as at Deep); report states tiers not applied. Tool limits (`disallowedTools`) also do not apply in oh-my-pi: `dl-reviewer`, `dl-architect` and `dl-runner` keep their limits by their prompts. Set thinking level in one place: never pass task tool's `effort` when agent's role or a per-call `model` already carries a `:level`; `effort` overrides it, and `hi` means model's highest level.
 - **Harness without plugin agents**: paste agent file's body at top of task prompt; set model and effort with harness's own option.
 - **Agent fails to resolve** mid-session (e.g. plugin updated under a running harness): spawn as in previous bullet, body pasted, model and effort from agent table; never fall back to harness's generic agent on its default model. After every spawn, compare the model and effort the agent resolved to (spawn status or session record) with agent table.
 
@@ -80,10 +81,12 @@ Worktree `<absolute path>`. Spec: <decision/doc ids>. Files you may edit: <list>
 Repo rules: <absolute path of the rules file>.
 Other owners (do not touch): <list>. Non-goals: <list>.
 Design: <wording given | design given | design open within constraints>.
+Reuse: <symbols to extend or call | none>. Delete: <code to remove | none>. Placement: <module | none>.
+Size: <net code and test lines | net-negative>; measure with `git diff --numstat <base sha>`, tests = `<pathspec>`.
 # Change
 1. <numbered steps; binding decisions inline; symbol/line hints; the constraints that make it correct>
 # Tests
-- <behaviour per rule; each side of every new guard; at least one regression test that fails before the change>
+- <behaviour per rule; each side of every new guard; at least one regression test that fails before the change | none: no behaviour change, existing tests decide>
 # Acceptance
 <observable result>. Code, tests and docs in the working tree, uncommitted.
 ```
@@ -136,7 +139,7 @@ Verify doc edits by reading the result.
 
 ## 7. Round check and full gate
 
-Implementers and fixers never run full test suite or gate; where environment allows they format and compile-check own files and run targeted tests only (their new tests + existing tests of code they change). After every task of the batch (§6) returns, loop's orchestrator runs **round check** once per batch (never per task): format, lint, build, no test suite. **Full gate** in repo's documented order (format, lint, build, full test suite, other checks, duplicate/clone detection) runs once, after every unit passed all its review rounds (`implement-review-fix-loop` §7 step 1). Orchestrator runs both itself or through `dl-runner`, reading and judging its raw output. Expect and handle:
+Implementers and fixers never run full test suite or gate; where environment allows they format and compile-check own files and run targeted tests only (their new tests + existing tests of code they change). After every task of the batch (§6) returns, loop's orchestrator runs **round check** once per batch (never per task): format, lint, build, no test suite. **Full gate** in repo's documented order (format, lint, build, full test suite, other checks, duplicate/clone detection) runs once, after every unit passed all its review rounds (`implement-review-fix-loop` §7 step 1); only earlier run: refactor unit's own, before feature units branch (`implement-review-fix-loop` §0). Orchestrator runs both itself or through `dl-runner`, reading and judging its raw output. Expect and handle:
 
 1. **Duplicate-code / clone detectors** flag near-identical test setups parallel agents write independently. Dispatch as fix items (Standard tier): extract one helper per pair, never weaken assertions. Fixer MAY run duplicate detector itself (static tool, not a build) and reports its output. Like every fix: loop's round check and re-review, then full gate again, before landing.
 2. **Mechanical diagnostics**: strict-lint noise on helpers added for tests (e.g. redundant visibility), compile error at a named line, format diff. Tool prints exact fix → parent applies it as printed (exceptions at top of `implement-review-fix-loop`); otherwise dispatch as fix items (Light tier).
@@ -145,7 +148,7 @@ Implementers and fixers never run full test suite or gate; where environment all
 
 ## 8. Report to the loop
 
-Per item: done (implemented / fixed / documented / run) or not done, choice made, tier it ran at, any escalation with trigger (struggle handoff, second failed fix, reviewer `TIER: up`, parent's call). Then:
+Per item: done (implemented / fixed / documented / run) or not done, choice made, tier it ran at, size (code and test `+A −R`), any escalation with trigger (struggle handoff, second failed fix, reviewer `TIER: up`, parent's call). Then:
 
 - questions agents asked and answers given, when they changed the design
 - anything unexercised (not run live, behaviour only structurally testable)

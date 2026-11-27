@@ -91,6 +91,7 @@ modelRoles:
   dl_standard: anthropic/claude-sonnet-5-5:high
   dl_deep: anthropic/claude-opus-5-5:medium
   dl_review: anthropic/claude-opus-5-5:high
+  dl_architect: anthropic/claude-opus-5-5:high
 task:
   agentModelOverrides:
     dl-implementer-light: "@dl_light"
@@ -98,10 +99,11 @@ task:
     dl-implementer-deep: "@dl_deep"
     dl-runner: "@dl_light"
     dl-reviewer: "@dl_review"
+    dl-architect: "@dl_architect"
 ```
 
-Tool limits (`disallowedTools`) are Claude Code only: in oh-my-pi, `dl-reviewer` and
-`dl-runner` keep to their limits by their prompts.
+Tool limits (`disallowedTools`) are Claude Code only: in oh-my-pi, `dl-reviewer`,
+`dl-architect` and `dl-runner` keep to their limits by their prompts.
 
 Set each spawn's thinking level in one place: oh-my-pi's task `effort` overrides a
 `:level` on the role or model (`hi` is the model's highest level), so the skills
@@ -155,16 +157,31 @@ itself.
   add and the existing tests of the code they change); reviewers run only their own
   throwaway probes, never the project's tests; the orchestrator runs a round check (format,
   lint, build) each round and the full test suite once, after every unit passed all its
-  review rounds.
+  review rounds, plus once for a refactor unit before feature units build on it.
 - **Contract first** — open decisions are written down before any code; work is split into
-  units with disjoint file sets, ordered by risk.
+  units ordered by risk, with disjoint file sets when they run in parallel.
+- **Architecture map before code** — for features that add a concept or touch several
+  files, `dl-architect` maps where the feature belongs, what to reuse and delete, and
+  whether a preparatory refactor makes it smaller, with both paths sized. A refactor
+  reaching beyond the feature's files, changing a contract or growing the change goes to
+  the user for approval; a chosen refactor lands first as its own behaviour-preserving
+  unit.
+- **Less code** — each unit has a size budget, measured with `git diff --numstat` every
+  round and reported per unit; simplify requests run in simplify mode (behaviour unchanged,
+  net code lines down); fixes that change no behaviour add no tests; implementers follow
+  smallest-change rules and cut their own diff before reporting.
+- **Design rethink** — when a reviewer shows that findings share a structural root cause,
+  or the round cap is reached, `dl-architect` proposes a restructure; if it resolves the
+  findings with less code or fewer concepts, the user approves or declines it, and the
+  proposal's stated size becomes the restructure's acceptance test.
 - **Loop size** — trivial, single unit or multi-unit: the size sets which steps apply
-  (decision record, worktree, reviewers, live smoke, minor sweep); gate and review are
-  never skipped.
-- **Explicit severity scale** — critical / major / minor / nit, restated in every reviewer prompt.
+  (architecture map, decision record, worktree, reviewers, live smoke, minor sweep); gate
+  and review are never skipped.
+- **Explicit severity scale** — critical / major / minor / nit, restated in every reviewer
+  prompt; code the contract did not need counts as major.
 - **Review lenses** — reviews work through twelve named lenses (intent, correctness,
-  concurrency, failure behaviour, blast radius, security, tests, performance, duplication,
-  simplicity, placement, docs and operability), split between two reviewers when the loop
+  simplicity, concurrency, failure behaviour, blast radius, security, tests, performance,
+  duplication, placement, docs and operability), split between two reviewers when the loop
   runs two; a finding needs a trigger or design evidence. Reviewers may write throwaway
   probes; a probe that proves a finding stays in the worktree, the finding points to it, and
   the fixer uses it as the repro and deletes it. What neither reading nor a probe settles is
@@ -209,12 +226,13 @@ that fails at the very end. On its own it only runs tests, the gate or deploymen
 | Standard | `dl-implementer-standard` | `sonnet-5-5:high` | small to medium coding work, new small primitives, missing test cases, dedupe helpers; no complicated algorithms |
 | Deep | `dl-implementer-deep` | `opus-5-5:medium` | multi-module work, concurrency, complex algorithms, optimisations, large reasoning-heavy tasks |
 | Review | `dl-reviewer` | `opus-5-5:high` | every review in the loop; read-only apart from throwaway probes |
+| Architecture | `dl-architect` | `opus-5-5:high` | architecture map before code, design rethink proposals; read-only |
 
 Each implementer's system prompt carries the rules every task needs (owned files only,
-targeted tests only, no gate, no commit, reviewer probes as repro, ask the parent, struggle
-handoff, report format); `dl-reviewer` and
-`dl-runner` carry their limits, the ask rule and their report format. Task
-prompts carry only the work.
+targeted tests only, no gate, no commit, smallest change and size measurement, reviewer
+probes as repro, ask the parent, struggle handoff, report format); `dl-reviewer`,
+`dl-architect` and `dl-runner` carry their limits, the ask rule and their report format.
+Task prompts carry only the work.
 
 - **Escalation ladder** — `haiku-5-5:high` → `sonnet-5-5:high` → `opus-5-5:medium`, one step
   at a time, always to a fresh agent. Triggers: the agent itself struggles and sends a
@@ -296,6 +314,7 @@ These run through every skill:
 | **One owner per file** | Parallel work is partitioned so no two agents ever edit the same file. |
 | **Decisions are written down** | Open questions are settled before code; rejects, deferrals and accepted trade-offs carry their reasons. |
 | **Loops must converge** | Explicit stop conditions, round caps and backlogs instead of endless polishing. |
+| **Less code wins** | Size is measured every round; deletion comes before addition; a restructure that leaves simpler code is proposed to the user, never taken unilaterally. |
 | **Operators decide trade-offs** | Rule exceptions, new dependencies and durability or security trade-offs are surfaced, never taken unilaterally. |
 
 Every skill ends with a *pitfalls seen* section: failure modes observed in real sessions
@@ -312,7 +331,7 @@ that the procedure now guards against.
 └── plugins/
     ├── develop-loop/
     │   ├── .claude-plugin/plugin.json
-    │   ├── agents/                 # dl-implementer-light|standard|deep, dl-reviewer, dl-runner
+    │   ├── agents/                 # dl-implementer-light|standard|deep, dl-reviewer, dl-architect, dl-runner
     │   └── skills/
     │       ├── triage-findings/SKILL.md
     │       ├── implement-review-fix-loop/
